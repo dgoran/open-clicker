@@ -81,17 +81,22 @@ On the Mac running your presentation:
    - Intel Macs: Download the **x64** .dmg or .zip
    - Apple Silicon (M1/M2/M3): Download the **arm64** .dmg or .zip
 2. Install the app:
-   - **DMG**: Open the .dmg and drag the app to Applications
-   - **ZIP**: Extract the .zip and move the app to Applications
-3. Launch the app:
-   - **First launch**: Right-click the app and choose "Open" (see [macOS Security](#macos-security))
+   - **DMG**: Open the .dmg and drag the app to `/Applications`
+   - **ZIP**: Extract the .zip and move the app to `/Applications`
+3. **Remove quarantine** (important - see [macOS Security](#macos-security)):
+   ```bash
+   xattr -cr "/Applications/Open Clicker Show Machine.app"
+   ```
+4. Launch the app:
+   - Open from Applications
+   - If blocked, right-click the app and choose "Open"
    - Click "Open" in the Gatekeeper dialog
-4. If prompted, grant **Accessibility** permissions (see [macOS Accessibility](#macos-accessibility))
-5. Enter the **Server URL** (e.g., `http://192.168.1.100:3000` or `http://localhost:3000`)
-6. Enter the **Session Code** from the producer
-7. Click **Connect**
-8. Focus your Keynote, PowerPoint, browser presentation, or slide deck
-9. Use your phone or web clicker to control the slides!
+5. Grant **Accessibility** permissions when prompted (required for keyboard injection - see [macOS Accessibility](#macos-accessibility))
+6. Enter the **Server URL** (e.g., `http://192.168.1.100:3000` or `http://localhost:3000`)
+7. Enter the **Session Code** from the producer
+8. Click **Connect**
+9. Focus your Keynote, PowerPoint, browser presentation, or slide deck
+10. Use your phone or web clicker to control the slides!
 
 ### 4. Use Your Phone as a Clicker
 
@@ -286,15 +291,34 @@ Code signing is outside the scope of this open-source project. If you're concern
 
 The macOS app is **unsigned** and will trigger Gatekeeper warnings. This is normal for open-source applications without Apple Developer code-signing certificates.
 
-#### First Launch
+#### Recommended Installation & First Launch
 
-**Method 1: Right-Click Open (Recommended)**
+**If you see "Open Clicker Show Machine.app is damaged and can't be opened"**, this is a Gatekeeper quarantine issue (not a corrupt file). Follow these steps:
+
+1. **Copy the app to Applications**:
+   - Open the .dmg or extract the .zip
+   - Drag "Open Clicker Show Machine.app" to `/Applications`
+
+2. **Remove the quarantine attribute**:
+   ```bash
+   xattr -cr "/Applications/Open Clicker Show Machine.app"
+   ```
+
+3. **Launch the app**:
+   - Open from Applications
+   - If still blocked, right-click → "Open" → confirm "Open"
+
+After these steps, you can launch the app normally.
+
+#### Alternative Methods
+
+**Method 1: Right-Click Open**
 1. Locate the app in Finder (usually in `/Applications`)
 2. Right-click (or Control-click) the app
 3. Choose "Open" from the context menu
 4. Click "Open" in the dialog that appears
 
-This adds a permanent exception for the app.
+This adds a permanent exception for the app, but may not work if the "damaged" dialog appears first.
 
 **Method 2: System Settings**
 
@@ -305,7 +329,7 @@ If you accidentally double-clicked and got blocked:
 4. Click **"Open Anyway"**
 5. Confirm by clicking **"Open"**
 
-After the first launch using either method, you can launch the app normally.
+**Note**: Do NOT disable Gatekeeper system-wide. The methods above create exceptions only for this app.
 
 #### Why Unsigned?
 
