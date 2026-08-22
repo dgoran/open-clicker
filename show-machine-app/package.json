@@ -1,0 +1,55 @@
+{
+  "name": "open-clicker-show-machine",
+  "version": "1.0.0",
+  "description": "Open Clicker Windows Show Machine Client",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win --x64",
+    "build:portable": "electron-builder --win portable --x64",
+    "build:installer": "electron-builder --win nsis --x64"
+  },
+  "author": "Open Clicker",
+  "license": "MIT",
+  "dependencies": {
+    "socket.io-client": "^4.6.1",
+    "robotjs": "^0.6.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.openclicker.showmachine",
+    "productName": "Open Clicker Show Machine",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        },
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.exe"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    }
+  }
+}
