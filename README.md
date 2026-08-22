@@ -11,7 +11,9 @@ Open-source remote presenter clicker: control slides from your phone or browser.
   - **macOS App**: Standalone .app/.dmg with GUI for Apple Silicon (no Node.js required) - [Download](https://github.com/dgoran/open-clicker/releases)
   - **Linux App**: Standalone AppImage with GUI (no Node.js required) - [Download](https://github.com/dgoran/open-clicker/releases)
   - **CLI Client**: Node.js command-line client for any platform with Node installed
-  - Receives clicks and injects arrow keys into the focused window (PowerPoint, Keynote, browser slides)
+  - Choose to control PowerPoint, Keynote, or any focused window
+  - Automatically brings the target app forward and sends keys to it
+  - Receives clicks and injects arrow keys into the targeted application
 - **Speaker Notes**: Simple paste/edit notes field synchronized across devices
 - **Countdown Timer**: Visual timer for presentations
 
@@ -173,7 +175,12 @@ npm run show-client <SESSION_CODE>
 - Automated/scripted setups
 - Development and testing
 
-**How it works**: Both clients inject `Left Arrow` (prev) and `Right Arrow` (next) key presses into the focused window. This works with:
+**How it works**: Both clients inject `Left Arrow` (prev) and `Right Arrow` (next) key presses. The desktop apps support three modes:
+- **Focused Window**: Injects keys into the currently focused window
+- **PowerPoint** (Windows/macOS): Automatically brings PowerPoint forward and sends keys to it
+- **Keynote** (macOS only): Automatically brings Keynote forward and sends keys to it
+
+The CLI client uses focused window mode. This works with:
 - Microsoft PowerPoint
 - Apple Keynote
 - Google Slides (in presentation mode)

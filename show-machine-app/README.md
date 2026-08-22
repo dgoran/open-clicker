@@ -45,6 +45,7 @@ Tagged releases automatically upload executables to the Releases page. Other bui
 
 - **No Node.js Required**: Runs on any Windows machine without installing Node.js or npm
 - **Simple GUI**: Easy-to-use interface for connecting to your session
+- **Target App Selection**: Choose to control PowerPoint, Keynote, or any focused window
 - **Real Keyboard Injection**: Uses system-level keyboard simulation to control PowerPoint, browser slides, PDF viewers, etc.
 - **Activity Log**: See every next/prev command as it happens
 - **Reconnection**: Automatically attempts to reconnect if the connection drops
@@ -67,6 +68,24 @@ Open `http://localhost:3000/producer.html` in a browser and create a session. No
 
 ### 3. Run the Show Machine App
 
+#### Choosing the Target Application
+
+The show machine app lets you choose which application to control:
+
+- **Focused Window** (default): Sends arrow keys to whichever window is currently active. Works with browser-based presentations (Google Slides, reveal.js, etc.), PDF viewers, and any application that uses arrow keys for navigation. This is the traditional behavior and maintains compatibility with all workflows.
+
+- **PowerPoint** (Windows & macOS): Automatically brings PowerPoint to the foreground and sends arrow keys to it. The app will bring PowerPoint forward whenever you click next/prev, so you can have other windows open without accidentally advancing them. PowerPoint must be running.
+
+- **Keynote** (macOS only): Automatically brings Keynote to the foreground and sends arrow keys to it. The app will bring Keynote forward whenever you click next/prev. Keynote must be running. This option is hidden on Windows and Linux.
+
+**Permissions:**
+- **macOS**: When using PowerPoint or Keynote targets, the first time you connect the system may prompt you to grant **Accessibility** permissions. This is required to detect and activate applications. See [macOS Accessibility](#macos-accessibility) for setup instructions.
+
+**Persistence:** Your target app choice is automatically saved and will be remembered when you restart the application.
+
+**Platform Notes:**
+- **Linux**: PowerPoint and Keynote are not typically available on Linux. The "Focused Window" option works well with LibreOffice Impress, browser presentations, and PDF viewers.
+
 #### Windows
 
 On the Windows computer running your presentation:
@@ -75,9 +94,13 @@ On the Windows computer running your presentation:
 2. If Windows SmartScreen appears, click "More info" → "Run anyway" (see [Windows Security](#windows-security))
 3. Enter the **Server URL** (e.g., `http://192.168.1.100:3000` or `http://localhost:3000`)
 4. Enter the **Session Code** from the producer
-5. Click **Connect**
-6. Focus your PowerPoint, browser presentation, or slide deck
-7. Use your phone or web clicker to control the slides!
+5. Choose your **Target Application**:
+   - **Focused Window**: Keys sent to whatever window is active
+   - **PowerPoint**: Automatically activates PowerPoint and sends keys to it
+6. Click **Connect**
+7. If using "Focused Window", focus your presentation window
+8. If using "PowerPoint", ensure PowerPoint is running with your presentation open
+9. Use your phone or web clicker to control the slides!
 
 #### macOS
 
@@ -99,9 +122,14 @@ On the Mac running your presentation:
 5. Grant **Accessibility** permissions when prompted (required for keyboard injection - see [macOS Accessibility](#macos-accessibility))
 6. Enter the **Server URL** (e.g., `http://192.168.1.100:3000` or `http://localhost:3000`)
 7. Enter the **Session Code** from the producer
-8. Click **Connect**
-9. Focus your Keynote, PowerPoint, browser presentation, or slide deck
-10. Use your phone or web clicker to control the slides!
+8. Choose your **Target Application**:
+   - **Focused Window**: Keys sent to whatever window is active
+   - **PowerPoint**: Automatically activates PowerPoint and sends keys to it
+   - **Keynote**: Automatically activates Keynote and sends keys to it
+9. Click **Connect**
+10. If using "Focused Window", focus your presentation window
+11. If using "PowerPoint" or "Keynote", ensure the app is running with your presentation open
+12. Use your phone or web clicker to control the slides!
 
 #### Linux
 
@@ -118,9 +146,12 @@ On the Linux computer running your presentation:
    ```
 4. Enter the **Server URL** (e.g., `http://192.168.1.100:3000` or `http://localhost:3000`)
 5. Enter the **Session Code** from the producer
-6. Click **Connect**
-7. Focus your browser presentation, LibreOffice Impress, or slide deck
-8. Use your phone or web clicker to control the slides!
+6. Choose your **Target Application**:
+   - **Focused Window**: Keys sent to whatever window is active (recommended for Linux)
+   - **PowerPoint**: Listed but not typically available on Linux
+7. Click **Connect**
+8. Focus your browser presentation, LibreOffice Impress, or slide deck
+9. Use your phone or web clicker to control the slides!
 
 **Dependencies**: The app requires X11 and libxtst, which are typically pre-installed on desktop Linux distributions. If keyboard injection doesn't work, install:
 ```bash
@@ -354,12 +385,20 @@ The app uses `robotjs` to inject system-level keyboard events:
 - **Next**: Injects `Right Arrow` key
 - **Prev**: Injects `Left Arrow` key
 
-This works with any Windows application that responds to arrow keys:
-- Microsoft PowerPoint
-- Google Slides (in present mode)
-- Browser-based presentations
-- PDF viewers
-- Any arrow-key-controlled software
+**Target App Selection**: When you choose a specific target (PowerPoint or Keynote), the app will:
+1. Bring that application to the foreground
+2. Send the arrow key to it
+3. Keep other windows from receiving the key press accidentally
+
+**Focused Window Mode**: Uses the traditional behavior of sending keys to whichever window is currently active.
+
+This works with:
+- **PowerPoint** (Windows & macOS): Automatically activated when selected as target
+- **Keynote** (macOS): Automatically activated when selected as target
+- **Google Slides** (in present mode): Use "Focused Window" mode
+- **Browser-based presentations**: Use "Focused Window" mode
+- **PDF viewers**: Use "Focused Window" mode
+- **Any arrow-key-controlled software**: Use "Focused Window" mode
 
 ## Security and Permissions
 
