@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1a1a1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Clicker - Open Clicker</title>
   <style>
     * { 
@@ -11,29 +14,36 @@
       padding: 0;
       -webkit-tap-highlight-color: transparent;
     }
+    html {
+      height: 100%;
+      overflow: hidden;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #1a1a1a;
       color: white;
-      height: 100vh;
+      height: 100%;
       overflow: hidden;
       touch-action: manipulation;
+      position: fixed;
+      width: 100%;
     }
     #join-screen {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 100vh;
-      padding: 20px;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
     }
     h1 {
-      margin-bottom: 32px;
-      font-size: 32px;
+      margin-bottom: 24px;
+      font-size: clamp(24px, 6vw, 32px);
     }
     .join-form {
       background: #2a2a2a;
-      padding: 32px;
+      padding: 24px;
       border-radius: 16px;
       width: 100%;
       max-width: 400px;
@@ -41,7 +51,7 @@
     input[type="text"] {
       width: 100%;
       padding: 16px;
-      font-size: 24px;
+      font-size: 20px;
       border: 2px solid #444;
       border-radius: 12px;
       background: #1a1a1a;
@@ -68,6 +78,7 @@
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1px;
+      min-height: 48px;
     }
     .button:active {
       transform: scale(0.98);
@@ -75,31 +86,36 @@
     #clicker-screen {
       display: none;
       height: 100vh;
+      height: 100dvh;
       flex-direction: column;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
     }
     .header {
-      padding: 20px;
+      padding: 16px max(16px, env(safe-area-inset-left)) 16px max(16px, env(safe-area-inset-right));
       text-align: center;
       background: #2a2a2a;
+      flex-shrink: 0;
     }
     .session-info {
-      font-size: 14px;
+      font-size: 12px;
       color: #999;
     }
     .session-code {
-      font-size: 24px;
+      font-size: clamp(20px, 5vw, 24px);
       font-weight: bold;
       color: #667eea;
       font-family: 'Courier New', monospace;
-      margin: 8px 0;
+      margin: 6px 0;
     }
     .status {
       display: inline-block;
-      padding: 4px 12px;
+      padding: 6px 14px;
       border-radius: 12px;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
       text-transform: uppercase;
+      margin-top: 4px;
     }
     .status.locked {
       background: #dc3545;
@@ -108,10 +124,10 @@
       background: #28a745;
     }
     .timer {
-      font-size: 36px;
+      font-size: clamp(28px, 7vw, 36px);
       font-weight: bold;
       font-family: 'Courier New', monospace;
-      margin: 12px 0;
+      margin: 10px 0 6px;
     }
     .timer.warning { color: #ffc107; }
     .timer.danger { color: #dc3545; }
@@ -120,12 +136,14 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 0;
+      min-height: 0;
+      overflow: hidden;
     }
     .control-button {
       background: #2a2a2a;
       border: 2px solid #1a1a1a;
       color: white;
-      font-size: 48px;
+      font-size: clamp(32px, 8vw, 48px);
       font-weight: bold;
       cursor: pointer;
       transition: background 0.1s;
@@ -133,6 +151,9 @@
       align-items: center;
       justify-content: center;
       user-select: none;
+      -webkit-user-select: none;
+      min-height: 120px;
+      touch-action: manipulation;
     }
     .control-button:active {
       background: #667eea;
@@ -145,29 +166,41 @@
       background: #2a2a2a;
     }
     .notes {
-      padding: 16px;
+      padding: 14px max(16px, env(safe-area-inset-left)) 14px max(16px, env(safe-area-inset-right));
       background: #2a2a2a;
-      max-height: 200px;
+      max-height: 160px;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       border-top: 2px solid #1a1a1a;
+      flex-shrink: 0;
     }
     .notes-title {
-      font-size: 12px;
+      font-size: 11px;
       color: #999;
       text-transform: uppercase;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       font-weight: 600;
     }
     .notes-content {
       font-size: 14px;
-      line-height: 1.6;
+      line-height: 1.5;
       color: #ccc;
       white-space: pre-wrap;
+      word-wrap: break-word;
     }
     .error {
       color: #dc3545;
       margin-top: 12px;
       text-align: center;
+      font-size: 14px;
+    }
+    @media (max-width: 400px) {
+      .join-form {
+        padding: 20px;
+      }
+      .header {
+        padding: 12px max(12px, env(safe-area-inset-left)) 12px max(12px, env(safe-area-inset-right));
+      }
     }
   </style>
 </head>

@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#667eea">
   <title>Open Clicker</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -13,48 +14,52 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
     }
     .container {
       background: white;
       border-radius: 16px;
-      padding: 48px;
+      padding: clamp(24px, 6vw, 48px);
       max-width: 500px;
       width: 100%;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     }
     h1 {
       color: #333;
-      margin-bottom: 12px;
-      font-size: 32px;
+      margin-bottom: 10px;
+      font-size: clamp(24px, 6vw, 32px);
     }
     .subtitle {
       color: #666;
-      margin-bottom: 36px;
-      font-size: 16px;
+      margin-bottom: clamp(24px, 5vw, 36px);
+      font-size: clamp(14px, 3.5vw, 16px);
     }
     .card {
       background: #f8f9fa;
       border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 16px;
+      padding: clamp(18px, 4.5vw, 24px);
+      margin-bottom: 14px;
       border: 2px solid transparent;
       transition: all 0.2s;
       cursor: pointer;
+      touch-action: manipulation;
     }
     .card:hover {
       border-color: #667eea;
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
     }
+    .card:active {
+      transform: scale(0.98);
+    }
     .card h2 {
       color: #333;
       margin-bottom: 8px;
-      font-size: 20px;
+      font-size: clamp(17px, 4.2vw, 20px);
     }
     .card p {
       color: #666;
-      font-size: 14px;
+      font-size: clamp(13px, 3.2vw, 14px);
       line-height: 1.5;
     }
     a {
@@ -62,10 +67,15 @@
       color: inherit;
     }
     .footer {
-      margin-top: 32px;
+      margin-top: clamp(20px, 5vw, 32px);
       text-align: center;
       color: #999;
-      font-size: 14px;
+      font-size: clamp(12px, 3vw, 14px);
+    }
+    @media (max-width: 400px) {
+      .card {
+        margin-bottom: 12px;
+      }
     }
   </style>
 </head>
