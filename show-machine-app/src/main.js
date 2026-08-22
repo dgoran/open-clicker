@@ -88,16 +88,22 @@ function activateApp(targetApp) {
         return;
       }
 
+      // PowerShell script: Find window and bring it to foreground
+      // Make Add-Type idempotent by checking if type exists first
       const psScript = `
         $window = Get-Process | Where-Object {$_.MainWindowTitle -like "*${windowTitle}*"} | Select-Object -First 1
         if ($window) {
-          $sig = '[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);'
-          $type = Add-Type -MemberDefinition $sig -Name WindowAPI -PassThru
-          $type::SetForegroundWindow($window.MainWindowHandle)
+          if (-not ([System.Management.Automation.PSTypeName]'Win32.User32').Type) {
+            Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);' -Name User32 -Namespace Win32
+          }
+          [Win32.User32]::SetForegroundWindow($window.MainWindowHandle)
         }
-      `;
+      `.trim();
       
-      exec(`powershell -Command "${psScript.replace(/\n/g, ' ')}"`, (error, stdout, stderr) => {
+      // Use -EncodedCommand to avoid quote escaping issues
+      const encodedCommand = Buffer.from(psScript, 'utf16le').toString('base64');
+      
+      exec(`powershell -EncodedCommand ${encodedCommand}`, (error, stdout, stderr) => {
         if (error) {
           console.error(`Error activating ${windowTitle}:`, error);
           reject(new Error(`Failed to activate ${windowTitle}. Is it running?`));
