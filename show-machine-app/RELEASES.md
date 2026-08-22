@@ -1,10 +1,10 @@
 # Creating Releases
 
-This guide explains how to create a new release of the Open Clicker Show Machine Windows app.
+This guide explains how to create a new release of the Open Clicker Show Machine desktop apps for Windows, macOS, and Linux.
 
 ## Automated Release Process
 
-The Windows executable is automatically built and uploaded to GitHub Releases when you create a version tag.
+Executables for all platforms (Windows, macOS, Linux) are automatically built and uploaded to GitHub Releases when you create a version tag.
 
 ### Step-by-Step Release
 
@@ -35,19 +35,28 @@ The Windows executable is automatically built and uploaded to GitHub Releases wh
 
 5. **Wait for GitHub Actions**
    - Go to: https://github.com/dgoran/open-clicker/actions
-   - Watch the "Build Windows Show Machine App" workflow run
-   - It will build on a Windows runner (takes ~5-10 minutes)
+   - Watch all three build workflows run:
+     - "Build Windows Show Machine App" (Windows runner, ~5-10 minutes)
+     - "Build macOS Show Machine App" (macOS runner, ~5-10 minutes)
+     - "Build Linux Show Machine App" (Ubuntu runner, ~3-5 minutes)
 
 6. **Verify the release**
    - Go to: https://github.com/dgoran/open-clicker/releases
-   - Your release should appear with two attached executables:
-     - `Open Clicker Show Machine-1.1.0-portable.exe`
-     - `Open Clicker Show Machine Setup 1.1.0.exe`
+   - Your release should appear with these attached files:
+     - **Windows**:
+       - `Open Clicker Show Machine-1.1.0-portable.exe`
+       - `Open Clicker Show Machine Setup 1.1.0.exe`
+     - **macOS**:
+       - `Open Clicker Show Machine-1.1.0-arm64.dmg`
+       - `Open Clicker Show Machine-1.1.0-arm64-mac.zip`
+     - **Linux**:
+       - `Open Clicker Show Machine-1.1.0.AppImage`
 
-7. **Test the executable**
-   - Download the portable .exe
-   - Test on a clean Windows machine
-   - Verify it connects and injects keys correctly
+7. **Test the executables**
+   - **Windows**: Download and test portable .exe on a clean Windows machine
+   - **macOS**: Download and test .dmg on an Apple Silicon Mac
+   - **Linux**: Download and test .AppImage on a Linux distribution
+   - Verify each connects and injects keys correctly
 
 8. **Edit release notes** (optional)
    - GitHub auto-generates notes from commits
@@ -71,12 +80,43 @@ If GitHub Actions fails or you need to build locally:
    show-machine-app/dist/Open Clicker Show Machine Setup 1.1.0.exe
    ```
 
+### On macOS
+
+1. **Build locally**
+   ```bash
+   cd show-machine-app
+   npm install
+   npm run build:mac
+   ```
+
+2. **Find executables**
+   ```
+   show-machine-app/dist/Open Clicker Show Machine-1.1.0-arm64.dmg
+   show-machine-app/dist/Open Clicker Show Machine-1.1.0-arm64-mac.zip
+   ```
+
+### On Linux
+
+1. **Build locally**
+   ```bash
+   cd show-machine-app
+   npm install
+   npm run build:linux
+   ```
+
+2. **Find executable**
+   ```
+   show-machine-app/dist/Open Clicker Show Machine-1.1.0.AppImage
+   ```
+
+### Upload to GitHub
+
 3. **Create release manually on GitHub**
    - Go to: https://github.com/dgoran/open-clicker/releases
    - Click "Draft a new release"
    - Choose the tag (e.g., `v1.1.0`)
    - Write release notes
-   - Upload the two .exe files
+   - Upload all executables from all platforms
    - Publish release
 
 ## Release Checklist
@@ -91,12 +131,25 @@ Before creating a release:
 
 After creating a release:
 
+**Windows:**
 - [ ] Download and test the portable .exe on Windows
 - [ ] Download and test the installer on Windows
 - [ ] Verify executables are the correct size (~150-200 MB)
 - [ ] Verify no console errors on launch
 - [ ] Test connecting to a real session
 - [ ] Test keyboard injection works
+
+**macOS:**
+- [ ] Download and test the .dmg on Apple Silicon Mac
+- [ ] Verify Accessibility permissions workflow
+- [ ] Test keyboard injection in Keynote
+- [ ] Verify executable is the correct size (~150-200 MB)
+
+**Linux:**
+- [ ] Download and test the .AppImage on Linux
+- [ ] Test on at least one Debian-based and one RPM-based distro if possible
+- [ ] Verify executable is the correct size (~150-200 MB)
+- [ ] Test keyboard injection in browser/LibreOffice
 
 ## Version Numbering
 
@@ -122,17 +175,30 @@ Examples:
 
 ## Download
 
+**Windows:**
 - **Portable**: No installation required, just run it
 - **Installer**: Traditional setup with Start Menu shortcut
 
+**macOS:**
+- **DMG**: For Apple Silicon Macs (M1/M2/M3/M4)
+- **ZIP**: Alternative format for Apple Silicon Macs
+
+**Linux:**
+- **AppImage**: Portable executable for x64 Linux
+
 ## Requirements
 
-- Windows 10 or 11
+- **Windows**: Windows 10 or 11
+- **macOS**: Apple Silicon Mac (M1/M2/M3/M4) with macOS 10.13+
+- **Linux**: X11-based desktop with libxtst
 - Open Clicker server running
 
 ## Known Issues
 
-- Windows SmartScreen will warn (unsigned exe) - click "More info" → "Run anyway"
+- **Windows**: SmartScreen will warn (unsigned exe) - click "More info" → "Run anyway"
+- **macOS**: Gatekeeper will warn (unsigned app) - right-click and choose "Open"
+- **macOS**: Requires Accessibility permissions for keyboard injection
+- **Linux**: Requires X11 (Wayland works via XWayland)
 
 ## Upgrade Notes
 
@@ -195,4 +261,7 @@ If a release is broken:
 If you need help with releases:
 - Open an issue: https://github.com/dgoran/open-clicker/issues
 - Check Actions logs for build failures
-- Review `BUILD_WINDOWS.md` for build troubleshooting
+- Review platform-specific build docs:
+  - `BUILD_WINDOWS.md` for Windows troubleshooting
+  - `BUILD_MACOS.md` for macOS troubleshooting
+  - `BUILD_LINUX.md` for Linux troubleshooting
