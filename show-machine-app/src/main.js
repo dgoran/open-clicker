@@ -16,6 +16,10 @@ try {
 }
 
 function createWindow() {
+  const iconPath = process.platform === 'darwin' 
+    ? path.join(__dirname, '../build/icon.png')
+    : path.join(__dirname, '../build/icon.ico');
+  
   mainWindow = new BrowserWindow({
     width: 500,
     height: 600,
@@ -24,7 +28,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false
     },
-    icon: path.join(__dirname, '../build/icon.ico'),
+    icon: iconPath,
     resizable: false,
     autoHideMenuBar: true
   });
