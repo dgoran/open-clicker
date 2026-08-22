@@ -7,7 +7,8 @@
     "start": "electron .",
     "build": "electron-builder --win --x64",
     "build:portable": "electron-builder --win portable --x64",
-    "build:installer": "electron-builder --win nsis --x64"
+    "build:installer": "electron-builder --win nsis --x64",
+    "build:mac": "electron-builder --mac --x64 --arm64"
   },
   "author": "Open Clicker",
   "license": "MIT",
@@ -34,6 +35,39 @@
         }
       ],
       "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "entitlements": null,
+      "entitlementsInherit": null
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,

@@ -1,18 +1,34 @@
-# Open Clicker - Windows Show Machine App
+# Open Clicker - Show Machine App
 
-A standalone Windows executable for the Open Clicker show-machine client. No Node.js installation required on the show machine.
+Standalone desktop applications for the Open Clicker show-machine client. No Node.js installation required on the show machine.
 
-## Download Pre-Built Executable
+Available for:
+- **Windows**: Portable .exe and installer
+- **macOS**: .dmg and .zip for Intel and Apple Silicon
+
+## Download Pre-Built Applications
 
 **For Users**: Download the latest release from the [Releases page](https://github.com/dgoran/open-clicker/releases).
+
+### Windows
 
 Two versions are available:
 - **Portable**: `Open Clicker Show Machine-1.0.0-portable.exe` - No installation required, just run it
 - **Installer**: `Open Clicker Show Machine Setup 1.0.0.exe` - Traditional Windows installer with Start Menu shortcut
 
+### macOS
+
+Four versions are available:
+- **DMG (Intel)**: `Open Clicker Show Machine-1.0.0-x64.dmg` - Disk image for Intel Macs
+- **DMG (Apple Silicon)**: `Open Clicker Show Machine-1.0.0-arm64.dmg` - Disk image for M1/M2/M3 Macs
+- **ZIP (Intel)**: `Open Clicker Show Machine-1.0.0-x64-mac.zip` - Zip archive for Intel Macs
+- **ZIP (Apple Silicon)**: `Open Clicker Show Machine-1.0.0-arm64-mac.zip` - Zip archive for M1/M2/M3 Macs
+
+**Note**: macOS apps are **unsigned** and will trigger Gatekeeper warnings. See [macOS Security](#macos-security) below.
+
 ### Automated Builds
 
-Windows executables are automatically built via GitHub Actions:
+Windows and macOS applications are automatically built via GitHub Actions:
 - Every push to `main` that modifies `show-machine-app/`
 - Every pull request that modifies `show-machine-app/`
 - Every version tag (e.g., `v1.0.0`)
@@ -31,7 +47,7 @@ Tagged releases automatically upload executables to the Releases page. Other bui
 
 ### 1. Start the Open Clicker Server
 
-On your server machine (can be the same Windows machine or a different computer on the network):
+On your server machine (can be the same machine or a different computer on the network):
 
 ```bash
 npm start
@@ -45,14 +61,37 @@ Open `http://localhost:3000/producer.html` in a browser and create a session. No
 
 ### 3. Run the Show Machine App
 
+#### Windows
+
 On the Windows computer running your presentation:
 
 1. Download and run `Open Clicker Show Machine-1.0.0-portable.exe`
-2. Enter the **Server URL** (e.g., `http://192.168.1.100:3000` or `http://localhost:3000`)
-3. Enter the **Session Code** from the producer
-4. Click **Connect**
-5. Focus your PowerPoint, Keynote, or browser presentation window
-6. Use your phone or web clicker to control the slides!
+2. If Windows SmartScreen appears, click "More info" → "Run anyway" (see [Windows Security](#windows-security))
+3. Enter the **Server URL** (e.g., `http://192.168.1.100:3000` or `http://localhost:3000`)
+4. Enter the **Session Code** from the producer
+5. Click **Connect**
+6. Focus your PowerPoint, browser presentation, or slide deck
+7. Use your phone or web clicker to control the slides!
+
+#### macOS
+
+On the Mac running your presentation:
+
+1. Download the appropriate version for your Mac:
+   - Intel Macs: Download the **x64** .dmg or .zip
+   - Apple Silicon (M1/M2/M3): Download the **arm64** .dmg or .zip
+2. Install the app:
+   - **DMG**: Open the .dmg and drag the app to Applications
+   - **ZIP**: Extract the .zip and move the app to Applications
+3. Launch the app:
+   - **First launch**: Right-click the app and choose "Open" (see [macOS Security](#macos-security))
+   - Click "Open" in the Gatekeeper dialog
+4. If prompted, grant **Accessibility** permissions (see [macOS Accessibility](#macos-accessibility))
+5. Enter the **Server URL** (e.g., `http://192.168.1.100:3000` or `http://localhost:3000`)
+6. Enter the **Session Code** from the producer
+7. Click **Connect**
+8. Focus your Keynote, PowerPoint, browser presentation, or slide deck
+9. Use your phone or web clicker to control the slides!
 
 ### 4. Use Your Phone as a Clicker
 
@@ -62,13 +101,23 @@ Open `http://<SERVER_IP>:3000/clicker.html` on your phone (same network) and use
 
 ### Requirements
 
-**IMPORTANT**: This app **must be built on Windows** because robotjs (keyboard injection library) requires native compilation for Windows.
+**IMPORTANT**: 
+- **Windows builds** must be built on Windows because robotjs requires native compilation for Windows
+- **macOS builds** must be built on macOS because robotjs requires native compilation for macOS
 
+#### Windows
 - **OS**: Windows 10 or 11
 - **Node.js**: 18 LTS or 20 LTS
 - **Build Tools**: Visual Studio Build Tools or `windows-build-tools` npm package
 
-### Quick Build (Windows)
+#### macOS
+- **OS**: macOS 10.13 or later
+- **Node.js**: 18 LTS or 20 LTS
+- **Build Tools**: Xcode Command Line Tools (`xcode-select --install`)
+
+### Quick Build
+
+#### Windows
 
 Use the provided PowerShell script:
 
@@ -83,7 +132,23 @@ This script will:
 3. Build the Windows executable
 4. Show you where to find the .exe files
 
-### Manual Build (Windows)
+#### macOS
+
+```bash
+cd show-machine-app
+npm install
+npm run build:mac
+```
+
+Built files will be in `show-machine-app/dist/`:
+- `Open Clicker Show Machine-1.0.0-x64.dmg` (Intel Macs)
+- `Open Clicker Show Machine-1.0.0-arm64.dmg` (Apple Silicon)
+- `Open Clicker Show Machine-1.0.0-x64-mac.zip` (Intel Macs)
+- `Open Clicker Show Machine-1.0.0-arm64-mac.zip` (Apple Silicon)
+
+### Manual Build
+
+#### Windows
 
 1. **Install Prerequisites**
 
@@ -119,6 +184,38 @@ This script will:
    - Portable: `Open Clicker Show Machine-1.0.0-portable.exe`
    - Installer: `Open Clicker Show Machine Setup 1.0.0.exe`
 
+#### macOS
+
+1. **Install Prerequisites**
+
+   Install Xcode Command Line Tools:
+   ```bash
+   xcode-select --install
+   ```
+
+2. **Install Dependencies**
+
+   ```bash
+   cd show-machine-app
+   npm install
+   ```
+
+   This compiles robotjs for macOS. It may take a few minutes.
+
+3. **Build the App**
+
+   ```bash
+   npm run build:mac
+   ```
+
+4. **Find Your App**
+
+   Built files are in `show-machine-app/dist/`:
+   - `Open Clicker Show Machine-1.0.0-x64.dmg` (Intel)
+   - `Open Clicker Show Machine-1.0.0-arm64.dmg` (Apple Silicon)
+   - `Open Clicker Show Machine-1.0.0-x64-mac.zip` (Intel)
+   - `Open Clicker Show Machine-1.0.0-arm64-mac.zip` (Apple Silicon)
+
 ### Full Documentation
 
 See [BUILD_WINDOWS.md](BUILD_WINDOWS.md) for detailed instructions, troubleshooting, and CI/CD setup.
@@ -127,13 +224,21 @@ See [BUILD_WINDOWS.md](BUILD_WINDOWS.md) for detailed instructions, troubleshoot
 
 To run the app without building an executable:
 
+**Windows:**
 ```cmd
 cd show-machine-app
 npm install
 npm start
 ```
 
-This opens the Electron app for testing. You must still be on Windows to install robotjs.
+**macOS:**
+```bash
+cd show-machine-app
+npm install
+npm start
+```
+
+This opens the Electron app for testing. You must be on the respective platform to install and test robotjs.
 
 ## Technical Details
 
@@ -165,9 +270,9 @@ This works with any Windows application that responds to arrow keys:
 - PDF viewers
 - Any arrow-key-controlled software
 
-## Troubleshooting
+## Security and Permissions
 
-### Windows SmartScreen Warning
+### Windows Security
 
 When you first run the portable .exe, Windows may show a "Windows protected your PC" warning because the executable is not code-signed. This is normal for unsigned apps.
 
@@ -177,7 +282,67 @@ When you first run the portable .exe, Windows may show a "Windows protected your
 
 Code signing is outside the scope of this open-source project. If you're concerned about security, you can build the app yourself from source.
 
-### Connection Issues
+### macOS Security
+
+The macOS app is **unsigned** and will trigger Gatekeeper warnings. This is normal for open-source applications without Apple Developer code-signing certificates.
+
+#### First Launch
+
+**Method 1: Right-Click Open (Recommended)**
+1. Locate the app in Finder (usually in `/Applications`)
+2. Right-click (or Control-click) the app
+3. Choose "Open" from the context menu
+4. Click "Open" in the dialog that appears
+
+This adds a permanent exception for the app.
+
+**Method 2: System Settings**
+
+If you accidentally double-clicked and got blocked:
+1. Open **System Settings** → **Privacy & Security**
+2. Scroll to the "Security" section at the bottom
+3. Look for a message about "Open Clicker Show Machine" being blocked
+4. Click **"Open Anyway"**
+5. Confirm by clicking **"Open"**
+
+After the first launch using either method, you can launch the app normally.
+
+#### Why Unsigned?
+
+Code-signing requires:
+- An Apple Developer account ($99/year)
+- Notarization process for each build
+- Ongoing maintenance for certificate renewal
+
+For an open-source project, we've chosen to distribute unsigned builds. You can verify the source code and build it yourself if preferred.
+
+### macOS Accessibility
+
+**robotjs** (the keyboard injection library) requires **Accessibility** permissions to inject arrow keys into other applications.
+
+#### Granting Permissions
+
+When you first connect to a session, macOS may prompt you to grant Accessibility access:
+
+1. A dialog will appear asking to control your computer
+2. Click "Open System Settings"
+3. In **Privacy & Security** → **Accessibility**, enable "Open Clicker Show Machine"
+4. You may need to restart the app after granting permission
+
+#### Manual Setup
+
+If the prompt doesn't appear automatically:
+
+1. Open **System Settings** (System Preferences on older macOS)
+2. Go to **Privacy & Security** → **Accessibility**
+3. Click the lock icon to make changes (enter your password)
+4. Click the **+** button
+5. Navigate to and select **Open Clicker Show Machine.app**
+6. Ensure the checkbox next to the app is enabled
+
+**Note**: Without Accessibility permission, the app can still connect to the server but will not be able to inject keyboard events into your presentation software.
+
+## Troubleshooting
 
 - **"Connection error"**: Check that the server is running and the URL is correct
 - **"Session not found"**: Verify the session code is correct and the session is active
@@ -192,6 +357,8 @@ Code signing is outside the scope of this open-source project. If you're concern
 
 ### Build Issues
 
+#### Windows
+
 If `npm install` fails during build:
 
 1. **Install Visual Studio Build Tools**:
@@ -204,10 +371,36 @@ If `npm install` fails during build:
 
 3. **Python**: robotjs requires Python 3.x during compilation
 
+#### macOS
+
+If `npm install` fails during build:
+
+1. **Install Xcode Command Line Tools**:
+   ```bash
+   xcode-select --install
+   ```
+
+2. **Node version**: Use Node.js 18 or 20 (LTS versions work best with robotjs)
+
+3. **Rosetta 2** (Apple Silicon only): If building for Intel (x64) on Apple Silicon:
+   ```bash
+   softwareupdate --install-rosetta
+   ```
+
+### macOS Keyboard Injection Not Working
+
+If the app connects but keys aren't being injected:
+
+1. **Check Accessibility permissions**: Ensure the app is enabled in System Settings → Privacy & Security → Accessibility
+2. **Restart the app** after granting permissions
+3. **Focus the presentation window**: Make sure your Keynote/PowerPoint/browser window is focused
+4. **Try manual test**: Press the test buttons in the app activity log to verify keys are being sent
+
 ## Limitations
 
-- **Windows only**: This build targets Windows. macOS/Linux users can use the CLI client
-- **Unsigned**: The executable is not code-signed and will trigger SmartScreen warnings
+- **Platform-specific builds**: Windows builds must be built on Windows, macOS builds on macOS
+- **Unsigned apps**: Apps are not code-signed and will trigger security warnings
+- **Accessibility required**: macOS requires Accessibility permissions for keyboard injection
 - **No auto-update**: Users must manually download new versions
 
 ## License

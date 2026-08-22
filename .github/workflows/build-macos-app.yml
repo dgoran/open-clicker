@@ -1,0 +1,59 @@
+name: Build macOS Show Machine App
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'show-machine-app/**'
+  pull_request:
+    paths:
+      - 'show-machine-app/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build macOS App
+    runs-on: macos-14
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: show-machine-app/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: show-machine-app
+        run: npm ci
+      
+      - name: Build macOS app
+        working-directory: show-machine-app
+        run: npm run build:mac
+      
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-clicker-show-machine-macos
+          path: |
+            show-machine-app/dist/*.dmg
+            show-machine-app/dist/*-mac.zip
+          if-no-files-found: error
+      
+      - name: Create Release Assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            show-machine-app/dist/*.dmg
+            show-machine-app/dist/*.zip
+          draft: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
