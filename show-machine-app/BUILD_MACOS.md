@@ -218,19 +218,33 @@ npm run build:mac
 3. Run `npm start` to test before building
 4. If `npm start` works, build again with `npm run build:mac`
 
-### "App can't be opened" Gatekeeper warning
+### "App can't be opened" or "damaged" Gatekeeper warning
 
 This is **expected** for unsigned apps. It's not an error—macOS protects users from unsigned software.
 
-**To run your own build**:
+#### Recommended Fix (works for "damaged" dialog):
+
+1. **Copy the app to Applications**:
+   ```bash
+   cp -r "dist/mac/Open Clicker Show Machine.app" /Applications/
+   ```
+
+2. **Remove the quarantine attribute**:
+   ```bash
+   xattr -cr "/Applications/Open Clicker Show Machine.app"
+   ```
+
+3. **Launch the app** from Applications
+
+This removes the quarantine flag that macOS applies to downloaded files.
+
+#### Alternative (may not work for "damaged" dialog):
+
 1. Right-click the app in Finder
 2. Choose "Open" from the context menu
 3. Click "Open" in the confirmation dialog
 
-Or remove the quarantine attribute:
-```bash
-xattr -cr "Open Clicker Show Machine.app"
-```
+**Note**: Do NOT disable Gatekeeper system-wide (`spctl --master-disable`). The methods above create exceptions only for this app.
 
 ### Keyboard injection not working
 

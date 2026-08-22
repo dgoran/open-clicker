@@ -128,11 +128,15 @@ This security model is designed for both local network and public internet use, 
 1. Download the appropriate version from [Releases](https://github.com/dgoran/open-clicker/releases)
    - Intel Macs: Download **x64** .dmg or .zip
    - Apple Silicon (M1/M2/M3): Download **arm64** .dmg or .zip
-2. Install: Open .dmg and drag to Applications, or extract .zip
-3. **First launch**: Right-click the app and choose "Open" (bypasses Gatekeeper for unsigned apps)
-4. Grant **Accessibility** permissions when prompted (required for keyboard injection)
-5. Enter server URL and session code in the GUI
-6. Focus your presentation window
+2. Install: Open .dmg and drag to `/Applications`, or extract .zip and move to `/Applications`
+3. **Remove quarantine** to avoid "damaged" error:
+   ```bash
+   xattr -cr "/Applications/Open Clicker Show Machine.app"
+   ```
+4. **First launch**: Open the app (or right-click → "Open" if blocked)
+5. Grant **Accessibility** permissions when prompted (required for keyboard injection)
+6. Enter server URL and session code in the GUI
+7. Focus your presentation window
 
 See the [Desktop App README](show-machine-app/README.md) for full documentation, including:
 - Detailed security and permissions setup
