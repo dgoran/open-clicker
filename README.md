@@ -6,7 +6,10 @@ Open-source remote presenter clicker: control slides from your phone or browser.
 
 - **Web Clicker**: Large next/prev buttons that work on phones and desktop browsers, with screen wake-lock to prevent sleep
 - **Producer Controls**: Create sessions with join codes, lock/unlock clicking, manage speaker notes, and set countdown timers
-- **Show-Machine Client**: Receives clicks and injects arrow keys into the focused window (PowerPoint, Keynote, browser slides)
+- **Show-Machine Client**: 
+  - **Windows App**: Standalone .exe with GUI (no Node.js required) - [Download](https://github.com/dgoran/open-clicker/releases)
+  - **CLI Client**: Node.js command-line client for macOS/Linux/Windows with Node installed
+  - Receives clicks and injects arrow keys into the focused window (PowerPoint, Keynote, browser slides)
 - **Speaker Notes**: Simple paste/edit notes field synchronized across devices
 - **Countdown Timer**: Visual timer for presentations
 
@@ -46,7 +49,15 @@ The server will start on `http://localhost:3000`
    - Enter the session code
    - Use the large PREV/NEXT buttons to control slides
 
-3. **Show Machine**: On the computer running your presentation, open Terminal and run:
+3. **Show Machine**: On the computer running your presentation:
+
+   **Option 1 - Windows Standalone App (Recommended)**
+   - Download `Open Clicker Show Machine-1.0.0-portable.exe` from [Releases](https://github.com/dgoran/open-clicker/releases)
+   - Run the app, enter server URL and session code
+   - No Node.js installation required!
+   - See [Windows App README](show-machine-app/README.md) for details
+
+   **Option 2 - Node.js CLI (macOS/Linux/Windows with Node)**
    ```bash
    npm run show-client <SESSION_CODE>
    ```
@@ -82,7 +93,22 @@ The server will start on `http://localhost:3000`
 - **Live Status**: Shows lock status, timer, and speaker notes
 - **Visual Feedback**: Buttons flash when pressed
 
-### Show-Machine Client (CLI)
+### Show-Machine Clients
+
+#### Windows Standalone App (Recommended for Windows)
+
+**No Node.js Required!** Just download and run the .exe:
+
+1. Download from [Releases](https://github.com/dgoran/open-clicker/releases)
+2. Run `Open Clicker Show Machine-1.0.0-portable.exe`
+3. Enter server URL and session code in the GUI
+4. Focus your presentation window
+
+See the [Windows App README](show-machine-app/README.md) for full documentation, building from source, and troubleshooting.
+
+**Note**: Windows SmartScreen may warn about running unsigned apps. Click "More info" → "Run anyway".
+
+#### CLI Client (macOS/Linux/Windows with Node)
 
 The Node.js CLI client connects to your session and injects keyboard events:
 
@@ -97,7 +123,7 @@ npm run show-client <SESSION_CODE>
 - Windows: Full support (requires build tools)
 - Linux: Full support (requires X11 libraries)
 
-**How it works**: The client uses `robotjs` to inject `Left Arrow` (prev) and `Right Arrow` (next) key presses into the focused window. This works with:
+**How it works**: Both clients inject `Left Arrow` (prev) and `Right Arrow` (next) key presses into the focused window. This works with:
 - Microsoft PowerPoint
 - Apple Keynote
 - Google Slides (in presentation mode)

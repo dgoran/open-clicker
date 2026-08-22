@@ -1,0 +1,64 @@
+name: Build Windows Show Machine App
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'show-machine-app/**'
+  pull_request:
+    paths:
+      - 'show-machine-app/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Windows Executable
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: show-machine-app/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: show-machine-app
+        run: npm ci
+      
+      - name: Build Windows executable
+        working-directory: show-machine-app
+        run: npm run build
+      
+      - name: Upload portable executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-clicker-show-machine-portable
+          path: show-machine-app/dist/*portable.exe
+          if-no-files-found: error
+      
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-clicker-show-machine-installer
+          path: show-machine-app/dist/*Setup*.exe
+          if-no-files-found: error
+      
+      - name: Create Release Assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            show-machine-app/dist/*portable.exe
+            show-machine-app/dist/*Setup*.exe
+          draft: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
