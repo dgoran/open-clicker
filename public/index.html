@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Clicker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 48px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 12px;
+      font-size: 32px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 36px;
+      font-size: 16px;
+    }
+    .card {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 16px;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .card:hover {
+      border-color: #667eea;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+    .card h2 {
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 20px;
+    }
+    .card p {
+      color: #666;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+    .footer {
+      margin-top: 32px;
+      text-align: center;
+      color: #999;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Open Clicker</h1>
+    <p class="subtitle">Remote presenter control system</p>
+    
+    <a href="/producer.html">
+      <div class="card">
+        <h2>🎬 Producer</h2>
+        <p>Create and manage a presentation session. Control the clicker lock, set timers, and manage speaker notes.</p>
+      </div>
+    </a>
+    
+    <a href="/clicker.html">
+      <div class="card">
+        <h2>📱 Clicker</h2>
+        <p>Join a session from your phone or computer. Advance slides with large, easy-to-tap buttons.</p>
+      </div>
+    </a>
+    
+    <a href="/show.html">
+      <div class="card">
+        <h2>🖥️ Show Client (Browser)</h2>
+        <p>Browser-based show client for testing. For production, use the Node.js CLI client to control desktop apps.</p>
+      </div>
+    </a>
+    
+    <div class="footer">
+      Open source • MIT License
+    </div>
+  </div>
+</body>
+</html>

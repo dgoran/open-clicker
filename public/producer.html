@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Producer - Open Clicker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    header {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 8px;
+    }
+    .session-code {
+      font-size: 32px;
+      font-weight: bold;
+      color: #667eea;
+      margin: 16px 0;
+      font-family: 'Courier New', monospace;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .card h2 {
+      color: #333;
+      margin-bottom: 16px;
+      font-size: 18px;
+    }
+    .button {
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    .button:hover {
+      background: #5568d3;
+      transform: translateY(-1px);
+    }
+    .button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .button.danger {
+      background: #dc3545;
+    }
+    .button.danger:hover {
+      background: #c82333;
+    }
+    .button.success {
+      background: #28a745;
+    }
+    .button.success:hover {
+      background: #218838;
+    }
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .timer-controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      align-items: center;
+    }
+    .timer-display {
+      font-size: 48px;
+      font-weight: bold;
+      color: #333;
+      text-align: center;
+      margin: 16px 0;
+      font-family: 'Courier New', monospace;
+    }
+    .timer-display.warning {
+      color: #ffc107;
+    }
+    .timer-display.danger {
+      color: #dc3545;
+    }
+    input[type="number"] {
+      padding: 8px 12px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      width: 80px;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .status.locked {
+      background: #dc3545;
+      color: white;
+    }
+    .status.unlocked {
+      background: #28a745;
+      color: white;
+    }
+    #setup {
+      text-align: center;
+      padding: 60px 20px;
+    }
+    #setup .button {
+      font-size: 18px;
+      padding: 16px 32px;
+    }
+    #producer {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="setup">
+      <h1>Producer Control</h1>
+      <p style="color: #666; margin: 16px 0 32px;">Create a new presentation session</p>
+      <button class="button" onclick="createSession()">Create Session</button>
+    </div>
+
+    <div id="producer">
+      <header>
+        <h1>Producer Control</h1>
+        <div class="session-code" id="sessionCode"></div>
+        <p style="color: #666;">Share this code with clickers and the show client</p>
+      </header>
+
+      <div class="card">
+        <h2>Clicker Lock</h2>
+        <p style="color: #666; margin-bottom: 16px;">
+          Status: <span class="status unlocked" id="lockStatus">Unlocked</span>
+        </p>
+        <div class="controls">
+          <button class="button danger" id="lockBtn" onclick="setLock(true)">Lock Clicker</button>
+          <button class="button success" id="unlockBtn" onclick="setLock(false)">Unlock Clicker</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Countdown Timer</h2>
+        <div class="timer-display" id="timerDisplay">--:--</div>
+        <div class="timer-controls">
+          <input type="number" id="timerMinutes" min="1" max="999" value="30" placeholder="Minutes">
+          <button class="button" onclick="startTimer()">Start Timer</button>
+          <button class="button" onclick="resetTimer()">Reset</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Speaker Notes</h2>
+        <textarea id="notes" placeholder="Enter speaker notes here..."></textarea>
+        <div style="margin-top: 12px;">
+          <button class="button" onclick="saveNotes()">Save Notes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let sessionCode = null;
+    let timerInterval = null;
+    let timerEndTime = null;
+
+    socket.on('session-created', ({ code }) => {
+      sessionCode = code;
+      document.getElementById('sessionCode').textContent = code;
+      document.getElementById('setup').style.display = 'none';
+      document.getElementById('producer').style.display = 'block';
+    });
+
+    socket.on('lock-changed', ({ locked }) => {
+      updateLockStatus(locked);
+    });
+
+    function createSession() {
+      socket.emit('create-session');
+    }
+
+    function setLock(locked) {
+      socket.emit('set-lock', { code: sessionCode, locked });
+      updateLockStatus(locked);
+    }
+
+    function updateLockStatus(locked) {
+      const status = document.getElementById('lockStatus');
+      const lockBtn = document.getElementById('lockBtn');
+      const unlockBtn = document.getElementById('unlockBtn');
+      
+      if (locked) {
+        status.textContent = 'Locked';
+        status.className = 'status locked';
+        lockBtn.disabled = true;
+        unlockBtn.disabled = false;
+      } else {
+        status.textContent = 'Unlocked';
+        status.className = 'status unlocked';
+        lockBtn.disabled = false;
+        unlockBtn.disabled = true;
+      }
+    }
+
+    function startTimer() {
+      const minutes = parseInt(document.getElementById('timerMinutes').value);
+      if (minutes > 0) {
+        socket.emit('set-timer', { code: sessionCode, minutes });
+        timerEndTime = Date.now() + (minutes * 60 * 1000);
+        updateTimerDisplay();
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(updateTimerDisplay, 100);
+      }
+    }
+
+    function resetTimer() {
+      socket.emit('reset-timer', { code: sessionCode });
+      const minutes = parseInt(document.getElementById('timerMinutes').value);
+      timerEndTime = Date.now() + (minutes * 60 * 1000);
+      updateTimerDisplay();
+    }
+
+    function updateTimerDisplay() {
+      if (!timerEndTime) return;
+      
+      const remaining = Math.max(0, timerEndTime - Date.now());
+      const totalSeconds = Math.floor(remaining / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      
+      const display = document.getElementById('timerDisplay');
+      display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      
+      display.className = 'timer-display';
+      if (remaining === 0) {
+        display.className = 'timer-display danger';
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+      } else if (remaining < 60000) {
+        display.className = 'timer-display danger';
+      } else if (remaining < 300000) {
+        display.className = 'timer-display warning';
+      }
+    }
+
+    function saveNotes() {
+      const notes = document.getElementById('notes').value;
+      socket.emit('set-notes', { code: sessionCode, notes });
+    }
+
+    document.getElementById('notes').addEventListener('input', () => {
+      saveNotes();
+    });
+
+    socket.on('timer-changed', ({ timer, timerStartedAt }) => {
+      timerEndTime = timerStartedAt + (timer * 1000);
+      updateTimerDisplay();
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimerDisplay, 100);
+    });
+  </script>
+</body>
+</html>
