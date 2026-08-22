@@ -8,7 +8,8 @@
     "build": "electron-builder --win --x64",
     "build:portable": "electron-builder --win portable --x64",
     "build:installer": "electron-builder --win nsis --x64",
-    "build:mac": "electron-builder --mac --x64 --arm64"
+    "build:mac": "electron-builder --mac --arm64",
+    "build:linux": "electron-builder --linux --x64"
   },
   "author": "Open Clicker",
   "license": "MIT",
@@ -40,11 +41,11 @@
       "target": [
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": ["arm64"]
         },
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": ["arm64"]
         }
       ],
       "icon": "build/icon.png",
@@ -69,6 +70,17 @@
         }
       ],
       "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        }
+      ],
+      "category": "Utility",
+      "synopsis": "Open Clicker Show Machine Client",
+      "description": "Standalone desktop client for the Open Clicker show-machine. Receives clicks and injects arrow keys into the focused window."
     },
     "nsis": {
       "oneClick": false,

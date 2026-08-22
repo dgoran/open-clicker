@@ -4,7 +4,8 @@ Standalone desktop applications for the Open Clicker show-machine client. No Nod
 
 Available for:
 - **Windows**: Portable .exe and installer
-- **macOS**: .dmg and .zip for Intel and Apple Silicon
+- **macOS**: .dmg and .zip for Apple Silicon (M1/M2/M3/M4)
+- **Linux**: AppImage (x64)
 
 ## Download Pre-Built Applications
 
@@ -18,17 +19,22 @@ Two versions are available:
 
 ### macOS
 
-Four versions are available:
-- **DMG (Intel)**: `Open Clicker Show Machine-1.0.0-x64.dmg` - Disk image for Intel Macs
-- **DMG (Apple Silicon)**: `Open Clicker Show Machine-1.0.0-arm64.dmg` - Disk image for M1/M2/M3 Macs
-- **ZIP (Intel)**: `Open Clicker Show Machine-1.0.0-x64-mac.zip` - Zip archive for Intel Macs
-- **ZIP (Apple Silicon)**: `Open Clicker Show Machine-1.0.0-arm64-mac.zip` - Zip archive for M1/M2/M3 Macs
+Two versions are available:
+- **DMG (Apple Silicon)**: `Open Clicker Show Machine-1.0.0-arm64.dmg` - Disk image for M1/M2/M3/M4 Macs
+- **ZIP (Apple Silicon)**: `Open Clicker Show Machine-1.0.0-arm64-mac.zip` - Zip archive for M1/M2/M3/M4 Macs
 
 **Note**: macOS apps are **unsigned** and will trigger Gatekeeper warnings. See [macOS Security](#macos-security) below.
 
+### Linux
+
+One version is available:
+- **AppImage (x64)**: `Open Clicker Show Machine-1.0.0.AppImage` - Portable Linux application
+
+**Note**: Requires X11 and libxtst. Most desktop Linux distributions include these by default.
+
 ### Automated Builds
 
-Windows and macOS applications are automatically built via GitHub Actions:
+Windows, macOS, and Linux applications are automatically built via GitHub Actions:
 - Every push to `main` that modifies `show-machine-app/`
 - Every pull request that modifies `show-machine-app/`
 - Every version tag (e.g., `v1.0.0`)
@@ -77,9 +83,8 @@ On the Windows computer running your presentation:
 
 On the Mac running your presentation:
 
-1. Download the appropriate version for your Mac:
-   - Intel Macs: Download the **x64** .dmg or .zip
-   - Apple Silicon (M1/M2/M3): Download the **arm64** .dmg or .zip
+1. Download the **arm64** .dmg or .zip from [Releases](https://github.com/dgoran/open-clicker/releases)
+   - **Note**: Apple Silicon (M1/M2/M3/M4) only. Intel Macs are not supported.
 2. Install the app:
    - **DMG**: Open the .dmg and drag the app to `/Applications`
    - **ZIP**: Extract the .zip and move the app to `/Applications`
@@ -98,6 +103,37 @@ On the Mac running your presentation:
 9. Focus your Keynote, PowerPoint, browser presentation, or slide deck
 10. Use your phone or web clicker to control the slides!
 
+#### Linux
+
+On the Linux computer running your presentation:
+
+1. Download the .AppImage from [Releases](https://github.com/dgoran/open-clicker/releases)
+2. Make it executable:
+   ```bash
+   chmod +x Open-Clicker-Show-Machine-*.AppImage
+   ```
+3. Run the app:
+   ```bash
+   ./Open-Clicker-Show-Machine-*.AppImage
+   ```
+4. Enter the **Server URL** (e.g., `http://192.168.1.100:3000` or `http://localhost:3000`)
+5. Enter the **Session Code** from the producer
+6. Click **Connect**
+7. Focus your browser presentation, LibreOffice Impress, or slide deck
+8. Use your phone or web clicker to control the slides!
+
+**Dependencies**: The app requires X11 and libxtst, which are typically pre-installed on desktop Linux distributions. If keyboard injection doesn't work, install:
+```bash
+# Debian/Ubuntu
+sudo apt-get install libxtst6
+
+# Fedora/RHEL
+sudo dnf install libXtst
+
+# Arch
+sudo pacman -S libxtst
+```
+
 ### 4. Use Your Phone as a Clicker
 
 Open `http://<SERVER_IP>:3000/clicker.html` on your phone (same network) and use the large PREV/NEXT buttons.
@@ -109,6 +145,7 @@ Open `http://<SERVER_IP>:3000/clicker.html` on your phone (same network) and use
 **IMPORTANT**: 
 - **Windows builds** must be built on Windows because robotjs requires native compilation for Windows
 - **macOS builds** must be built on macOS because robotjs requires native compilation for macOS
+- **Linux builds** must be built on Linux because robotjs requires native compilation for Linux
 
 #### Windows
 - **OS**: Windows 10 or 11
@@ -116,9 +153,14 @@ Open `http://<SERVER_IP>:3000/clicker.html` on your phone (same network) and use
 - **Build Tools**: Visual Studio Build Tools or `windows-build-tools` npm package
 
 #### macOS
-- **OS**: macOS 10.13 or later
+- **OS**: macOS 10.13 or later (Apple Silicon recommended)
 - **Node.js**: 18 LTS or 20 LTS
 - **Build Tools**: Xcode Command Line Tools (`xcode-select --install`)
+
+#### Linux
+- **OS**: Ubuntu 18.04+, Debian 10+, Fedora 30+, or similar
+- **Node.js**: 18 LTS or 20 LTS
+- **Build Tools**: `build-essential`, `libxtst-dev`, `libpng-dev`
 
 ### Quick Build
 
@@ -146,10 +188,19 @@ npm run build:mac
 ```
 
 Built files will be in `show-machine-app/dist/`:
-- `Open Clicker Show Machine-1.0.0-x64.dmg` (Intel Macs)
 - `Open Clicker Show Machine-1.0.0-arm64.dmg` (Apple Silicon)
-- `Open Clicker Show Machine-1.0.0-x64-mac.zip` (Intel Macs)
 - `Open Clicker Show Machine-1.0.0-arm64-mac.zip` (Apple Silicon)
+
+#### Linux
+
+```bash
+cd show-machine-app
+npm install
+npm run build:linux
+```
+
+Built file will be in `show-machine-app/dist/`:
+- `Open Clicker Show Machine-1.0.0.AppImage` (x64)
 
 ### Manual Build
 
@@ -216,14 +267,49 @@ Built files will be in `show-machine-app/dist/`:
 4. **Find Your App**
 
    Built files are in `show-machine-app/dist/`:
-   - `Open Clicker Show Machine-1.0.0-x64.dmg` (Intel)
    - `Open Clicker Show Machine-1.0.0-arm64.dmg` (Apple Silicon)
-   - `Open Clicker Show Machine-1.0.0-x64-mac.zip` (Intel)
    - `Open Clicker Show Machine-1.0.0-arm64-mac.zip` (Apple Silicon)
+
+#### Linux
+
+1. **Install Prerequisites**
+
+   Install build dependencies:
+   ```bash
+   # Debian/Ubuntu
+   sudo apt-get update
+   sudo apt-get install -y build-essential libxtst-dev libpng-dev
+
+   # Fedora/RHEL
+   sudo dnf install -y gcc-c++ make libXtst-devel libpng-devel
+
+   # Arch
+   sudo pacman -S base-devel libxtst libpng
+   ```
+
+2. **Install Dependencies**
+
+   ```bash
+   cd show-machine-app
+   npm install
+   ```
+
+   This compiles robotjs for Linux. It may take a few minutes.
+
+3. **Build the App**
+
+   ```bash
+   npm run build:linux
+   ```
+
+4. **Find Your App**
+
+   Built file is in `show-machine-app/dist/`:
+   - `Open Clicker Show Machine-1.0.0.AppImage` (x64)
 
 ### Full Documentation
 
-See [BUILD_WINDOWS.md](BUILD_WINDOWS.md) for detailed instructions, troubleshooting, and CI/CD setup.
+See [BUILD_WINDOWS.md](BUILD_WINDOWS.md) and [BUILD_MACOS.md](BUILD_MACOS.md) for detailed instructions, troubleshooting, and CI/CD setup.
 
 ### Development Mode
 
@@ -408,9 +494,25 @@ If `npm install` fails during build:
 
 2. **Node version**: Use Node.js 18 or 20 (LTS versions work best with robotjs)
 
-3. **Rosetta 2** (Apple Silicon only): If building for Intel (x64) on Apple Silicon:
+#### Linux
+
+If `npm install` fails during build:
+
+1. **Install build dependencies**:
    ```bash
-   softwareupdate --install-rosetta
+   # Debian/Ubuntu
+   sudo apt-get install -y build-essential libxtst-dev libpng-dev
+
+   # Fedora/RHEL
+   sudo dnf install -y gcc-c++ make libXtst-devel libpng-devel
+   ```
+
+2. **Node version**: Use Node.js 18 or 20 (LTS versions work best with robotjs)
+
+3. **Clean and retry**:
+   ```bash
+   rm -rf node_modules package-lock.json
+   npm install
    ```
 
 ### macOS Keyboard Injection Not Working
@@ -424,10 +526,11 @@ If the app connects but keys aren't being injected:
 
 ## Limitations
 
-- **Platform-specific builds**: Windows builds must be built on Windows, macOS builds on macOS
+- **Platform-specific builds**: Windows builds must be built on Windows, macOS builds on macOS, Linux builds on Linux
 - **Unsigned apps**: Apps are not code-signed and will trigger security warnings
 - **Accessibility required**: macOS requires Accessibility permissions for keyboard injection
 - **No auto-update**: Users must manually download new versions
+- **macOS Intel not supported**: Only Apple Silicon (M1/M2/M3/M4) Macs are supported
 
 ## License
 
@@ -439,7 +542,7 @@ To contribute improvements or bug fixes:
 
 1. Fork the repository
 2. Make changes in the `show-machine-app/` directory
-3. Test the build on Windows
+3. Test the build on your platform (Windows/macOS/Linux)
 4. Submit a pull request
 
 ## Support

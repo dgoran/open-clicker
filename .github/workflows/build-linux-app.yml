@@ -1,4 +1,4 @@
-name: Build macOS Show Machine App
+name: Build Linux Show Machine App
 
 on:
   push:
@@ -15,8 +15,8 @@ on:
 
 jobs:
   build:
-    name: Build macOS App
-    runs-on: macos-14
+    name: Build Linux App
+    runs-on: ubuntu-22.04
     
     steps:
       - name: Checkout code
@@ -29,30 +29,31 @@ jobs:
           cache: 'npm'
           cache-dependency-path: show-machine-app/package-lock.json
       
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxtst-dev libpng-dev build-essential
+      
       - name: Install dependencies
         working-directory: show-machine-app
         run: npm ci
       
-      - name: Build macOS app
+      - name: Build Linux app
         working-directory: show-machine-app
-        run: npm run build:mac
+        run: npm run build:linux
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: open-clicker-show-machine-macos
-          path: |
-            show-machine-app/dist/*-arm64.dmg
-            show-machine-app/dist/*-arm64-mac.zip
+          name: open-clicker-show-machine-linux
+          path: show-machine-app/dist/*.AppImage
           if-no-files-found: error
       
       - name: Create Release Assets
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            show-machine-app/dist/*-arm64.dmg
-            show-machine-app/dist/*-arm64-mac.zip
+          files: show-machine-app/dist/*.AppImage
           draft: false
           generate_release_notes: true
         env:

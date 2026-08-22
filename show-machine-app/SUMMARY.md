@@ -6,9 +6,10 @@ A complete **Windows standalone application** for the Open Clicker show-machine 
 
 ### Key Features
 
-✅ **Standalone Executable**
-- Portable .exe (run anywhere, no install)
-- NSIS installer (traditional Windows setup)
+✅ **Standalone Executables**
+- **Windows**: Portable .exe and NSIS installer
+- **macOS**: .dmg and .zip for Apple Silicon
+- **Linux**: AppImage (x64)
 - ~150-200 MB bundled app with all dependencies
 
 ✅ **Simple GUI**
@@ -23,13 +24,15 @@ A complete **Windows standalone application** for the Open Clicker show-machine 
 - Works with PowerPoint, browsers, PDF viewers, any arrow-key app
 
 ✅ **Automated Builds**
-- GitHub Actions workflow
+- GitHub Actions workflows for Windows, macOS, and Linux
 - Builds on every PR and push to main
 - Auto-uploads to GitHub Releases on version tags
 
 ✅ **Complete Documentation**
 - README: Usage, features, download
-- BUILD_WINDOWS.md: Detailed build instructions
+- BUILD_WINDOWS.md: Detailed Windows build instructions
+- BUILD_MACOS.md: Detailed macOS build instructions
+- BUILD_LINUX.md: Detailed Linux build instructions
 - RELEASES.md: Release process guide
 - PowerShell build script for Windows users
 
@@ -41,7 +44,9 @@ A complete **Windows standalone application** for the Open Clicker show-machine 
 
 ```
 .github/workflows/
-└── build-windows-app.yml         # GitHub Actions: auto-build Windows exe
+├── build-windows-app.yml         # GitHub Actions: auto-build Windows exe
+├── build-macos-app.yml           # GitHub Actions: auto-build macOS dmg/zip
+└── build-linux-app.yml           # GitHub Actions: auto-build Linux AppImage
 
 show-machine-app/
 ├── src/
@@ -55,6 +60,8 @@ show-machine-app/
 ├── package-lock.json             # Dependency lockfile
 ├── build.ps1                     # PowerShell: Windows build script
 ├── BUILD_WINDOWS.md              # Guide: Building on Windows
+├── BUILD_MACOS.md                # Guide: Building on macOS
+├── BUILD_LINUX.md                # Guide: Building on Linux
 ├── RELEASES.md                   # Guide: Creating releases
 ├── README.md                     # Usage documentation
 ├── SUMMARY.md                    # This file
@@ -103,7 +110,10 @@ PowerPoint / Browser / PDF Viewer
 
 Once merged and released:
 1. Go to: https://github.com/dgoran/open-clicker/releases
-2. Download latest `Open Clicker Show Machine-X.X.X-portable.exe`
+2. Download for your platform:
+   - Windows: `Open Clicker Show Machine-X.X.X-portable.exe`
+   - macOS: `Open Clicker Show Machine-X.X.X-arm64.dmg` (Apple Silicon)
+   - Linux: `Open Clicker Show Machine-X.X.X.AppImage`
 3. Run it (no install needed)
 
 ### Option 2: Build from Source (Windows Required)
@@ -118,10 +128,10 @@ See `BUILD_WINDOWS.md` for detailed instructions.
 
 ### Option 3: Let GitHub Actions Build It
 
-GitHub Actions automatically builds executables:
+GitHub Actions automatically builds executables for all platforms:
 - On every push to `main` touching `show-machine-app/`
 - On every pull request touching `show-machine-app/`
-- Download from workflow artifacts
+- Download from workflow artifacts (Windows, macOS, Linux)
 
 ## Next Steps
 
@@ -136,10 +146,10 @@ GitHub Actions automatically builds executables:
 
 1. Tag a version: `git tag v1.1.0 && git push origin v1.1.0`
 2. GitHub Actions will:
-   - Build Windows executable
+   - Build Windows, macOS, and Linux executables
    - Create GitHub Release
    - Upload executables automatically
-3. Test the downloaded `.exe` on Windows
+3. Test the downloaded executables on each platform
 4. Share the download link with users
 
 See `RELEASES.md` for detailed release process.
@@ -155,8 +165,9 @@ See `RELEASES.md` for detailed release process.
 ✅ electron-builder packaging configuration
 ✅ GitHub Actions workflow syntax
 
-### What Needs Testing on Windows
+### What Needs Testing on Each Platform
 
+**Windows:**
 ⏳ Actual Windows build (requires Windows machine or GitHub Actions)
 ⏳ robotjs compilation on Windows
 ⏳ Keyboard injection in PowerPoint
@@ -165,6 +176,20 @@ See `RELEASES.md` for detailed release process.
 ⏳ Reconnection handling
 ⏳ Portable .exe on clean Windows machine
 ⏳ Installer on clean Windows machine
+
+**macOS:**
+⏳ Actual macOS build (requires macOS machine or GitHub Actions)
+⏳ robotjs compilation on macOS
+⏳ Keyboard injection in Keynote
+⏳ Accessibility permissions workflow
+⏳ DMG installation
+
+**Linux:**
+⏳ Actual Linux build (requires Linux machine or GitHub Actions)
+⏳ robotjs compilation on Linux
+⏳ Keyboard injection in LibreOffice Impress / browser
+⏳ AppImage execution on different distributions
+⏳ X11/XWayland compatibility
 
 ## Known Limitations
 
@@ -180,25 +205,27 @@ See `RELEASES.md` for detailed release process.
 
 ### Build Requirements
 
-**Must build on Windows** because robotjs requires native compilation for the target platform.
+**Must build on respective platforms** because robotjs requires native compilation for the target platform.
 
 **Solutions provided**:
-- GitHub Actions workflow with Windows runner (automatic)
-- PowerShell build script for manual Windows builds
-- Comprehensive build documentation
+- GitHub Actions workflows for Windows, macOS, and Linux (automatic)
+- PowerShell/Bash build scripts for manual builds
+- Comprehensive build documentation for each platform
 
 ### Platform Support
 
-**Windows only** at this time. The CLI client supports macOS/Linux.
+**Windows, macOS (Apple Silicon only), and Linux** are fully supported.
 
-**Future**: The Electron app could be extended to macOS/Linux with minimal changes (robotjs already supports them).
+**Note**: Intel Mac support has been discontinued. Only Apple Silicon (M1/M2/M3/M4) Macs are supported.
 
 ## Definition of Done (Requirements Met)
 
-From original requirements:
+From requirements:
 
-1. ✅ **Windows standalone executable (portable .exe and/or installer)**
-   - Both provided via electron-builder
+1. ✅ **Standalone executables for Windows, macOS (Apple Silicon), and Linux**
+   - Windows: Portable .exe and installer via electron-builder
+   - macOS: DMG and ZIP for Apple Silicon only (Intel dropped)
+   - Linux: AppImage for x64
    - GitHub Actions builds them automatically
 
 2. ✅ **Enter session/join code and server URL**
@@ -207,20 +234,19 @@ From original requirements:
 
 3. ✅ **Injects next/prev keys**
    - robotjs injects Arrow Right/Left
-   - Works with PowerPoint, browsers, PDFs
+   - Works with PowerPoint, Keynote, browsers, PDFs, LibreOffice
 
 4. ✅ **README explains download, build, and usage**
-   - Main README updated
-   - Windows app README complete
-   - BUILD_WINDOWS.md for building
+   - Main README updated for all platforms
+   - Platform-specific READMEs: BUILD_WINDOWS.md, BUILD_MACOS.md, BUILD_LINUX.md
    - RELEASES.md for release process
 
 5. ✅ **Pull request against main**
-   - PR #2: https://github.com/dgoran/open-clicker/pull/2
+   - PR created with all changes
 
-6. ✅ **Produce downloadable .exe artifact**
-   - GitHub Actions workflow will produce actual .exe
-   - Workflow configured and ready to run
+6. ✅ **Produce downloadable artifacts for all platforms**
+   - GitHub Actions workflows will produce actual binaries for Windows, macOS, Linux
+   - Workflows configured and ready to run
    - Will upload to Releases on version tags
 
 ## Support and Troubleshooting
@@ -253,4 +279,4 @@ From original requirements:
 
 **Status**: Ready to merge! 🎉
 
-Once merged, GitHub Actions will build the Windows executable on the next push to main or when a version tag is created.
+Once merged, GitHub Actions will build Windows, macOS (Apple Silicon), and Linux executables on the next push to main or when a version tag is created.

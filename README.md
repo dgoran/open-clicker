@@ -8,7 +8,8 @@ Open-source remote presenter clicker: control slides from your phone or browser.
 - **Producer Controls**: Create sessions with join codes, lock/unlock clicking, manage speaker notes, and set countdown timers
 - **Show-Machine Client**: 
   - **Windows App**: Standalone .exe with GUI (no Node.js required) - [Download](https://github.com/dgoran/open-clicker/releases)
-  - **macOS App**: Standalone .app/.dmg with GUI (no Node.js required) - [Download](https://github.com/dgoran/open-clicker/releases)
+  - **macOS App**: Standalone .app/.dmg with GUI for Apple Silicon (no Node.js required) - [Download](https://github.com/dgoran/open-clicker/releases)
+  - **Linux App**: Standalone AppImage with GUI (no Node.js required) - [Download](https://github.com/dgoran/open-clicker/releases)
   - **CLI Client**: Node.js command-line client for any platform with Node installed
   - Receives clicks and injects arrow keys into the focused window (PowerPoint, Keynote, browser slides)
 - **Speaker Notes**: Simple paste/edit notes field synchronized across devices
@@ -52,9 +53,10 @@ The server will start on `http://localhost:3000`
 
 3. **Show Machine**: On the computer running your presentation:
 
-   **Option 1 - Standalone Desktop App (Recommended - Windows/macOS)**
+   **Option 1 - Standalone Desktop App (Recommended - Windows/macOS/Linux)**
    - **Windows**: Download `Open Clicker Show Machine-1.0.0-portable.exe` from [Releases](https://github.com/dgoran/open-clicker/releases)
-   - **macOS**: Download the appropriate .dmg or .zip for your Mac (Intel or Apple Silicon) from [Releases](https://github.com/dgoran/open-clicker/releases)
+   - **macOS**: Download the .dmg or .zip for Apple Silicon Macs (M1/M2/M3/M4) from [Releases](https://github.com/dgoran/open-clicker/releases)
+   - **Linux**: Download the .AppImage from [Releases](https://github.com/dgoran/open-clicker/releases), make it executable (`chmod +x`), and run
    - Run the app, enter server URL and session code
    - No Node.js installation required!
    - See [Desktop App README](show-machine-app/README.md) for details, including security setup
@@ -111,7 +113,7 @@ This security model is designed for both local network and public internet use, 
 
 ### Show-Machine Clients
 
-#### Desktop Apps (Recommended for Windows/macOS)
+#### Desktop Apps (Recommended for Windows/macOS/Linux)
 
 **No Node.js Required!** Just download and run:
 
@@ -124,10 +126,9 @@ This security model is designed for both local network and public internet use, 
 4. Focus your presentation window
 5. **Note**: Windows SmartScreen may warn about unsigned apps. Click "More info" → "Run anyway"
 
-**macOS:**
-1. Download the appropriate version from [Releases](https://github.com/dgoran/open-clicker/releases)
-   - Intel Macs: Download **x64** .dmg or .zip
-   - Apple Silicon (M1/M2/M3): Download **arm64** .dmg or .zip
+**macOS (Apple Silicon only):**
+1. Download from [Releases](https://github.com/dgoran/open-clicker/releases)
+   - Apple Silicon (M1/M2/M3/M4): Download **arm64** .dmg or .zip
 2. Install: Open .dmg and drag to `/Applications`, or extract .zip and move to `/Applications`
 3. **Remove quarantine** to avoid "damaged" error:
    ```bash
@@ -137,6 +138,14 @@ This security model is designed for both local network and public internet use, 
 5. Grant **Accessibility** permissions when prompted (required for keyboard injection)
 6. Enter server URL and session code in the GUI
 7. Focus your presentation window
+
+**Linux:**
+1. Download the .AppImage from [Releases](https://github.com/dgoran/open-clicker/releases)
+2. Make it executable: `chmod +x Open-Clicker-Show-Machine-*.AppImage`
+3. Run: `./Open-Clicker-Show-Machine-*.AppImage`
+4. Enter server URL and session code in the GUI
+5. Focus your presentation window
+6. **Note**: Requires X11 and libxtst. Most desktop Linux distributions include these by default.
 
 See the [Desktop App README](show-machine-app/README.md) for full documentation, including:
 - Detailed security and permissions setup

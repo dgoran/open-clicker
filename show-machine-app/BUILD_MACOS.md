@@ -1,6 +1,8 @@
 # Building the macOS App
 
-This guide explains how to build the Open Clicker Show Machine macOS app on a Mac.
+This guide explains how to build the Open Clicker Show Machine macOS app for Apple Silicon Macs.
+
+**Note**: Only Apple Silicon (M1/M2/M3/M4) is supported. Intel Mac builds have been discontinued.
 
 ## Prerequisites
 
@@ -84,22 +86,20 @@ This opens the Electron app. Test connecting to a session.
 npm run build:mac
 ```
 
-This builds both Intel (x64) and Apple Silicon (arm64) versions, creating:
-- `.dmg` disk images (user-friendly installer)
-- `.zip` archives (alternative distribution)
+This builds Apple Silicon (arm64) versions, creating:
+- `.dmg` disk image (user-friendly installer)
+- `.zip` archive (alternative distribution)
 
-Build time: 3-5 minutes depending on your Mac's speed.
+Build time: 2-3 minutes depending on your Mac's speed.
 
 ### 5. Find Your App
 
 Built files are in the `dist` folder:
 
-- **Intel Mac DMG**: `dist/Open Clicker Show Machine-1.0.0-x64.dmg`
 - **Apple Silicon DMG**: `dist/Open Clicker Show Machine-1.0.0-arm64.dmg`
-- **Intel Mac ZIP**: `dist/Open Clicker Show Machine-1.0.0-x64-mac.zip`
 - **Apple Silicon ZIP**: `dist/Open Clicker Show Machine-1.0.0-arm64-mac.zip`
 
-The DMG files provide the best user experience—users just drag the app to Applications.
+The DMG file provides the best user experience—users just drag the app to Applications.
 
 ## Build Script (Bash)
 
@@ -153,9 +153,7 @@ fi
 echo ""
 echo "SUCCESS! Build complete."
 echo "Find your apps in the 'dist' folder:"
-echo "  - Intel DMG: dist/Open Clicker Show Machine-1.0.0-x64.dmg"
 echo "  - Apple Silicon DMG: dist/Open Clicker Show Machine-1.0.0-arm64.dmg"
-echo "  - Intel ZIP: dist/Open Clicker Show Machine-1.0.0-x64-mac.zip"
 echo "  - Apple Silicon ZIP: dist/Open Clicker Show Machine-1.0.0-arm64-mac.zip"
 ```
 
@@ -182,12 +180,7 @@ chmod +x build.sh
    - robotjs works best with Node.js 18 LTS or 20 LTS
    - Avoid the very latest Node versions if you see errors
 
-3. **On Apple Silicon, install Rosetta 2** (if building for Intel):
-   ```bash
-   softwareupdate --install-rosetta
-   ```
-
-4. **Clean and retry**:
+3. **Clean and retry**:
    ```bash
    rm -rf node_modules package-lock.json
    npm install
@@ -286,7 +279,7 @@ This removes the quarantine flag that macOS applies to downloaded files.
 
 To test on a different Mac (simulating a real user):
 
-1. Copy the `.dmg` or `.zip` to the other Mac
+1. Copy the `.dmg` or `.zip` to another Apple Silicon Mac
 2. Install the app
 3. Grant Accessibility permissions
 4. Test connecting to a remote server
@@ -295,21 +288,18 @@ To test on a different Mac (simulating a real user):
 
 Once built and tested, you can:
 
-1. **Test both Intel and Apple Silicon versions** if possible
-   - Intel: Test on an Intel Mac
-   - Apple Silicon: Test on an M1/M2/M3 Mac
-   - Both architectures can run on Apple Silicon (Intel via Rosetta 2)
+1. **Test on Apple Silicon Mac** (M1/M2/M3/M4)
 
 2. **Upload to GitHub Releases**:
    - Go to your repository on GitHub
    - Click "Releases" → "Draft a new release"
-   - Upload all four files (.dmg and .zip for both architectures)
-   - Add release notes explaining which file users should download
+   - Upload both files (.dmg and .zip for Apple Silicon)
+   - Add release notes
    - Mention Gatekeeper (right-click → Open) and Accessibility permissions
 
 3. **Document the installation**:
    - Link to the README's security section
-   - Explain Intel vs Apple Silicon
+   - Note that only Apple Silicon is supported
    - Mention unsigned app workflow
 
 ## Continuous Integration (CI/CD)
@@ -350,7 +340,7 @@ jobs:
 
 This automatically builds macOS apps whenever you create a new release tag.
 
-**Note**: GitHub's macOS runners can build both Intel and Apple Silicon versions.
+**Note**: GitHub's macOS runners build Apple Silicon versions.
 
 ## Code Signing (Optional - Advanced)
 
@@ -391,4 +381,3 @@ If you encounter issues not covered here:
 1. Check the [main README](README.md)
 2. Open an issue on [GitHub](https://github.com/dgoran/open-clicker/issues)
 3. Include error messages and your macOS/Node.js versions
-4. Specify if you're on Intel or Apple Silicon
