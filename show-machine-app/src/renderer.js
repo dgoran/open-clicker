@@ -7,10 +7,36 @@ const connectedView = document.getElementById('connected-view');
 const activityList = document.getElementById('activity-list');
 const serverUrlInput = document.getElementById('server-url');
 const sessionCodeInput = document.getElementById('session-code');
+const targetAppSelect = document.getElementById('target-app');
+const keynoteOption = document.getElementById('keynote-option');
 const connectedServer = document.getElementById('connected-server');
 const connectedCode = document.getElementById('connected-code');
 
 let isConnected = false;
+
+// Initialize platform-specific UI on load
+window.addEventListener('DOMContentLoaded', async () => {
+  // Get platform and hide/disable Keynote option on non-macOS
+  const platform = await window.electronAPI.getPlatform();
+  if (platform !== 'darwin') {
+    // Remove or disable Keynote option on Windows/Linux
+    if (keynoteOption) {
+      keynoteOption.disabled = true;
+      keynoteOption.textContent = 'Keynote (macOS only - unavailable)';
+      keynoteOption.style.color = '#999';
+    }
+  }
+
+  // Load saved target app preference
+  const savedTargetApp = await window.electronAPI.loadTargetApp();
+  if (savedTargetApp) {
+    targetAppSelect.value = savedTargetApp;
+    // If Keynote is selected but platform is not macOS, reset to focused
+    if (savedTargetApp === 'keynote' && platform !== 'darwin') {
+      targetAppSelect.value = 'focused';
+    }
+  }
+});
 
 // Auto-uppercase session code input
 sessionCodeInput.addEventListener('input', (e) => {
@@ -23,6 +49,7 @@ form.addEventListener('submit', async (e) => {
   
   const serverUrl = serverUrlInput.value.trim();
   const sessionCode = sessionCodeInput.value.trim().toUpperCase();
+  const targetApp = targetAppSelect.value;
 
   if (!serverUrl || !sessionCode) {
     showStatus('Please fill in all fields', 'error');
@@ -34,7 +61,10 @@ form.addEventListener('submit', async (e) => {
   showStatus('Connecting to server...', 'info');
 
   try {
-    const result = await window.electronAPI.connect(serverUrl, sessionCode);
+    // Save target app preference
+    await window.electronAPI.saveTargetApp(targetApp);
+    
+    const result = await window.electronAPI.connect(serverUrl, sessionCode, targetApp);
     
     if (result.success) {
       isConnected = true;
@@ -42,8 +72,22 @@ form.addEventListener('submit', async (e) => {
       connectedView.classList.add('show');
       connectedServer.textContent = serverUrl;
       connectedCode.textContent = sessionCode;
-      showStatus('Connected! Focus your presentation window. Clicks from the clicker will inject arrow keys.', 'success');
+      
+      // Update status message based on target app
+      let targetText = '';
+      if (targetApp === 'powerpoint') {
+        targetText = ' Controlling PowerPoint.';
+      } else if (targetApp === 'keynote') {
+        targetText = ' Controlling Keynote.';
+      } else {
+        targetText = ' Focus your presentation window.';
+      }
+      
+      showStatus('Connected!' + targetText + ' Clicks from the clicker will inject arrow keys.', 'success');
       addActivity('Connected to session', 'success');
+      if (targetApp !== 'focused') {
+        addActivity(`Target: ${targetApp === 'powerpoint' ? 'PowerPoint' : 'Keynote'}`, 'info');
+      }
     } else {
       showStatus(result.error || 'Failed to connect', 'error');
       connectBtn.disabled = false;

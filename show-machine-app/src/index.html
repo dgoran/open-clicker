@@ -54,22 +54,37 @@
       font-size: 14px;
     }
 
-    input {
+    input, select {
       width: 100%;
       padding: 12px;
       border: 2px solid #e0e0e0;
       border-radius: 6px;
       font-size: 14px;
       transition: border-color 0.3s;
+      background: white;
     }
 
-    input:focus {
+    input:focus, select:focus {
       outline: none;
       border-color: #667eea;
     }
 
     input::placeholder {
       color: #aaa;
+    }
+
+    select {
+      cursor: pointer;
+    }
+
+    .target-info {
+      margin-top: 8px;
+    }
+
+    .target-info small {
+      color: #777;
+      font-size: 12px;
+      line-height: 1.4;
     }
 
     button {
@@ -240,6 +255,18 @@
             maxlength="6"
             style="text-transform: uppercase;"
           >
+        </div>
+
+        <div class="form-group">
+          <label for="target-app">Target Application</label>
+          <select id="target-app">
+            <option value="focused">Focused Window</option>
+            <option value="powerpoint">PowerPoint</option>
+            <option value="keynote" id="keynote-option">Keynote (macOS only)</option>
+          </select>
+          <div class="target-info">
+            <small>Choose which app to control. "Focused Window" sends keys to whichever window is active (browser slides, PDFs, etc.). Selecting PowerPoint or Keynote will bring that app forward and send keys to it specifically.</small>
+          </div>
         </div>
 
         <button type="submit" id="connect-btn">Connect</button>
