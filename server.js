@@ -13,7 +13,8 @@ const PORT = process.env.PORT || 3000;
 const sessions = new Map();
 
 function generateCode() {
-  const bytes = crypto.randomBytes(4);
+  // Generate 6 bytes to ensure at least 6 chars after stripping +/=
+  const bytes = crypto.randomBytes(6);
   return bytes.toString('base64')
     .replace(/[+/=]/g, '')
     .substring(0, 6)
