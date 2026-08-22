@@ -338,7 +338,9 @@ Code-signing requires:
 - Notarization process for each build
 - Ongoing maintenance for certificate renewal
 
-For an open-source project, we've chosen to distribute unsigned builds. You can verify the source code and build it yourself if preferred.
+For an open-source project, we've chosen to distribute unsigned builds with ad-hoc code signing. You can verify the source code and build it yourself if preferred.
+
+**Technical note**: The app uses ad-hoc code signing (`identity: null` in electron-builder config), which is the recommended setting for unsigned macOS apps to minimize Gatekeeper friction.
 
 ### macOS Accessibility
 
