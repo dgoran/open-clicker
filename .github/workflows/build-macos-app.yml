@@ -37,32 +37,13 @@ jobs:
         working-directory: show-machine-app
         run: npm run build:mac
       
-      - name: Upload DMG (x64)
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: open-clicker-show-machine-macos-x64-dmg
-          path: show-machine-app/dist/*x64*.dmg
-          if-no-files-found: error
-      
-      - name: Upload DMG (arm64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: open-clicker-show-machine-macos-arm64-dmg
-          path: show-machine-app/dist/*arm64*.dmg
-          if-no-files-found: error
-      
-      - name: Upload ZIP (x64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: open-clicker-show-machine-macos-x64-zip
-          path: show-machine-app/dist/*x64*.zip
-          if-no-files-found: error
-      
-      - name: Upload ZIP (arm64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: open-clicker-show-machine-macos-arm64-zip
-          path: show-machine-app/dist/*arm64*.zip
+          name: open-clicker-show-machine-macos
+          path: |
+            show-machine-app/dist/*.dmg
+            show-machine-app/dist/*-mac.zip
           if-no-files-found: error
       
       - name: Create Release Assets
