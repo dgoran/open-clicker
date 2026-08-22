@@ -123,11 +123,25 @@
     .status.unlocked {
       background: #28a745;
     }
+    .time-display {
+      margin: 10px 0 6px;
+    }
+    .clock {
+      font-size: clamp(20px, 5vw, 24px);
+      font-weight: 600;
+      font-family: 'Courier New', monospace;
+      color: #999;
+      margin-bottom: 4px;
+    }
     .timer {
-      font-size: clamp(28px, 7vw, 36px);
+      font-size: clamp(32px, 8vw, 42px);
       font-weight: bold;
       font-family: 'Courier New', monospace;
-      margin: 10px 0 6px;
+      color: #667eea;
+    }
+    .timer.idle {
+      font-size: clamp(18px, 4.5vw, 22px);
+      color: #555;
     }
     .timer.warning { color: #ffc107; }
     .timer.danger { color: #dc3545; }
@@ -146,7 +160,7 @@
       font-size: clamp(32px, 8vw, 48px);
       font-weight: bold;
       cursor: pointer;
-      transition: background 0.1s;
+      transition: background 0.15s, transform 0.1s;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -155,15 +169,29 @@
       min-height: 120px;
       touch-action: manipulation;
     }
-    .control-button:active {
-      background: #667eea;
+    .control-button.prev-button {
+      background: #dc3545;
+      border-color: #a02834;
+    }
+    .control-button.prev-button:active {
+      background: #c82333;
+      transform: scale(0.98);
+    }
+    .control-button.next-button {
+      background: #28a745;
+      border-color: #1e7e34;
+    }
+    .control-button.next-button:active {
+      background: #218838;
+      transform: scale(0.98);
     }
     .control-button:disabled {
       opacity: 0.3;
       cursor: not-allowed;
     }
     .control-button:disabled:active {
-      background: #2a2a2a;
+      background: inherit;
+      transform: none;
     }
     .notes {
       padding: 14px max(16px, env(safe-area-inset-left)) 14px max(16px, env(safe-area-inset-right));
@@ -221,14 +249,17 @@
       <div>
         <span class="status unlocked" id="lockStatus">Ready</span>
       </div>
-      <div class="timer" id="timer"></div>
+      <div class="time-display">
+        <div class="clock" id="clock">--:--:--</div>
+        <div class="timer idle" id="timer">No timer set</div>
+      </div>
     </div>
     
     <div class="controls">
-      <button class="control-button" id="prevBtn" ontouchstart="sendCommand('prev')" onclick="sendCommand('prev')">
+      <button class="control-button prev-button" id="prevBtn" ontouchstart="sendCommand('prev')" onclick="sendCommand('prev')">
         ← PREV
       </button>
-      <button class="control-button" id="nextBtn" ontouchstart="sendCommand('next')" onclick="sendCommand('next')">
+      <button class="control-button next-button" id="nextBtn" ontouchstart="sendCommand('next')" onclick="sendCommand('next')">
         NEXT →
       </button>
     </div>
@@ -247,6 +278,7 @@
     let wakeLock = null;
     let timerInterval = null;
     let timerEndTime = null;
+    let clockInterval = null;
 
     async function requestWakeLock() {
       if ('wakeLock' in navigator) {
@@ -288,7 +320,12 @@
         timerEndTime = data.timerStartedAt + (data.timer * 1000);
         updateTimerDisplay();
         timerInterval = setInterval(updateTimerDisplay, 100);
+      } else {
+        updateTimerDisplay();
       }
+      
+      updateClock();
+      clockInterval = setInterval(updateClock, 1000);
       
       requestWakeLock();
     });
@@ -327,12 +364,6 @@
     function sendCommand(direction) {
       if (sessionCode && clickerToken) {
         socket.emit(direction, { code: sessionCode, token: clickerToken });
-        
-        const btn = direction === 'next' ? document.getElementById('nextBtn') : document.getElementById('prevBtn');
-        btn.style.background = '#667eea';
-        setTimeout(() => {
-          btn.style.background = '#2a2a2a';
-        }, 100);
       }
     }
 
@@ -366,9 +397,20 @@
       }
     }
 
+    function updateClock() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('clock').textContent = `${hours}:${minutes}:${seconds}`;
+    }
+
     function updateTimerDisplay() {
+      const display = document.getElementById('timer');
+      
       if (!timerEndTime) {
-        document.getElementById('timer').textContent = '';
+        display.textContent = 'No timer set';
+        display.className = 'timer idle';
         return;
       }
       
@@ -377,7 +419,6 @@
       const minutes = Math.floor(totalSeconds / 60);
       const seconds = totalSeconds % 60;
       
-      const display = document.getElementById('timer');
       display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
       
       display.className = 'timer';
