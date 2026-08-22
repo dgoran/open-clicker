@@ -201,11 +201,13 @@
   <script>
     const socket = io();
     let sessionCode = null;
+    let producerToken = null;
     let timerInterval = null;
     let timerEndTime = null;
 
-    socket.on('session-created', ({ code }) => {
+    socket.on('session-created', ({ code, token }) => {
       sessionCode = code;
+      producerToken = token;
       document.getElementById('sessionCode').textContent = code;
       document.getElementById('setup').style.display = 'none';
       document.getElementById('producer').style.display = 'block';
@@ -220,7 +222,7 @@
     }
 
     function setLock(locked) {
-      socket.emit('set-lock', { code: sessionCode, locked });
+      socket.emit('set-lock', { code: sessionCode, token: producerToken, locked });
       updateLockStatus(locked);
     }
 
@@ -245,7 +247,7 @@
     function startTimer() {
       const minutes = parseInt(document.getElementById('timerMinutes').value);
       if (minutes > 0) {
-        socket.emit('set-timer', { code: sessionCode, minutes });
+        socket.emit('set-timer', { code: sessionCode, token: producerToken, minutes });
         timerEndTime = Date.now() + (minutes * 60 * 1000);
         updateTimerDisplay();
         if (timerInterval) clearInterval(timerInterval);
@@ -254,7 +256,7 @@
     }
 
     function resetTimer() {
-      socket.emit('reset-timer', { code: sessionCode });
+      socket.emit('reset-timer', { code: sessionCode, token: producerToken });
       const minutes = parseInt(document.getElementById('timerMinutes').value);
       timerEndTime = Date.now() + (minutes * 60 * 1000);
       updateTimerDisplay();
@@ -287,7 +289,7 @@
 
     function saveNotes() {
       const notes = document.getElementById('notes').value;
-      socket.emit('set-notes', { code: sessionCode, notes });
+      socket.emit('set-notes', { code: sessionCode, token: producerToken, notes });
     }
 
     document.getElementById('notes').addEventListener('input', () => {

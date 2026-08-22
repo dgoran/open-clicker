@@ -210,6 +210,7 @@
   <script>
     const socket = io();
     let sessionCode = null;
+    let clickerToken = null;
     let wakeLock = null;
     let timerInterval = null;
     let timerEndTime = null;
@@ -237,6 +238,7 @@
 
     socket.on('session-joined', (data) => {
       sessionCode = data.code;
+      clickerToken = data.token;
       document.getElementById('sessionCode').textContent = data.code;
       document.getElementById('join-screen').style.display = 'none';
       document.getElementById('clicker-screen').style.display = 'flex';
@@ -290,8 +292,8 @@
     }
 
     function sendCommand(direction) {
-      if (sessionCode) {
-        socket.emit(direction, { code: sessionCode });
+      if (sessionCode && clickerToken) {
+        socket.emit(direction, { code: sessionCode, token: clickerToken });
         
         const btn = direction === 'next' ? document.getElementById('nextBtn') : document.getElementById('prevBtn');
         btn.style.background = '#667eea';

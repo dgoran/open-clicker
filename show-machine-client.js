@@ -28,13 +28,15 @@ console.log(`Session code: ${SESSION_CODE}`);
 console.log('');
 
 const socket = io(SERVER_URL);
+let showToken = null; // eslint-disable-line no-unused-vars
 
 socket.on('connect', () => {
   console.log('✓ Connected to server');
   socket.emit('join-session', { code: SESSION_CODE, role: 'show-client' });
 });
 
-socket.on('session-joined', () => {
+socket.on('session-joined', ({ token }) => {
+  showToken = token;
   console.log('✓ Joined session successfully');
   console.log('');
   console.log('Ready! Focus your presentation window.');

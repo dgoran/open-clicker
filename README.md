@@ -70,10 +70,24 @@ The server will start on `http://localhost:3000`
 
 ### Producer Controls
 
-- **Create Session**: Generates a unique 6-character join code
+- **Create Session**: Generates a unique 6-character join code and secure producer token
 - **Lock/Unlock Clicker**: Prevent or allow slide advancement
 - **Countdown Timer**: Set a timer in minutes, visible to all clients
 - **Speaker Notes**: Enter notes that sync to all clickers
+
+### Security
+
+Open Clicker uses role-based authentication to secure sessions:
+
+- **Session Codes**: 6-character codes generated using cryptographically secure random bytes
+- **Role Tokens**: When joining a session, clients receive a unique 64-character authentication token
+  - **Producer Token**: Issued when creating a session; required for lock/unlock, timer, and notes operations
+  - **Clicker Token**: Issued when joining as a clicker; required for sending next/prev commands
+  - **Show-Client Token**: Issued when joining as a show client; validated for future privileged operations
+- **Token Validation**: All privileged operations require both a valid session code and the appropriate role token
+- **Automatic Management**: Tokens are automatically generated and stored by the client applications
+
+This security model is designed for both local network and public internet use, while keeping the join flow simple.
 
 ### Web Clicker
 
@@ -106,7 +120,7 @@ npm run show-client <SESSION_CODE>
 
 ## Network Setup
 
-### Local Network (Recommended for Production)
+### Local Network
 
 To use your phone as a clicker over local Wi-Fi:
 
@@ -128,6 +142,10 @@ To use your phone as a clicker over local Wi-Fi:
    ```
    http://<YOUR_IP>:3000/clicker.html
    ```
+
+### Public Internet Deployment
+
+Open Clicker's token-based authentication makes it safe to deploy on the public internet. Session codes are cryptographically random, and all privileged operations require role-specific tokens that are automatically issued at creation/join time.
 
 ### Custom Port
 
