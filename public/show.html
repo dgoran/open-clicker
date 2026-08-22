@@ -176,9 +176,11 @@
   <script>
     const socket = io();
     let sessionCode = null;
+    let showToken = null;
 
-    socket.on('session-joined', ({ code }) => {
+    socket.on('session-joined', ({ code, token }) => {
       sessionCode = code;
+      showToken = token;
       document.getElementById('sessionCode').textContent = code;
       document.getElementById('join-form').style.display = 'none';
       document.getElementById('connected').style.display = 'block';
