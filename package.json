@@ -1,0 +1,21 @@
+{
+  "name": "open-clicker",
+  "version": "1.0.0",
+  "description": "Open-source remote presenter clicker",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "show-client": "node show-machine-client.js"
+  },
+  "keywords": ["clicker", "presenter", "remote", "slides"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1",
+    "socket.io-client": "^4.6.1"
+  },
+  "optionalDependencies": {
+    "robotjs": "^0.6.0"
+  }
+}
