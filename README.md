@@ -88,7 +88,12 @@ The server will start on `http://localhost:3000`
 ### Producer Controls
 
 - **Create Session**: Generates a unique 6-character join code and secure producer token
-- **Lock/Unlock Clicker**: Prevent or allow slide advancement
+- **Presenter Access Control**: Toggle individual presenter's click access on/off in real-time
+  - Each presenter must provide a display name when joining
+  - Access defaults to enabled (presenters can click immediately)
+  - Producer can suspend/enable any presenter's clicking independently
+  - Presenters see clear "Access Suspended" status when disabled
+- **Global Clicker Lock**: Prevent or allow slide advancement for all clickers at once
 - **Countdown Timer**: Set a timer in minutes, visible to all clients
 - **Speaker Notes**: Enter notes that sync to all clickers
 
@@ -108,10 +113,11 @@ This security model is designed for both local network and public internet use, 
 
 ### Web Clicker
 
+- **Display Name Required**: Enter your name before joining (no anonymous presenters)
 - **Large Buttons**: Easy to tap on mobile devices
 - **Screen Wake Lock**: Prevents phone from sleeping during presentations
-- **Live Status**: Shows lock status, timer, and speaker notes
-- **Visual Feedback**: Buttons flash when pressed
+- **Live Status**: Shows global lock status, personal access status, timer, and speaker notes
+- **Visual Feedback**: Buttons flash when pressed, disabled when access suspended
 
 ### Show-Machine Clients
 

@@ -185,6 +185,40 @@
     #producer {
       display: none;
     }
+    .presenter-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .presenter-info {
+      flex: 1;
+      min-width: 120px;
+    }
+    .presenter-name {
+      font-weight: 600;
+      color: #333;
+      font-size: 15px;
+    }
+    .presenter-status {
+      font-size: 13px;
+      color: #666;
+      margin-top: 4px;
+    }
+    .presenter-controls {
+      display: flex;
+      gap: 8px;
+    }
+    .presenter-controls .button {
+      padding: 8px 16px;
+      font-size: 14px;
+      min-height: 36px;
+    }
     @media (max-width: 480px) {
       body {
         padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
@@ -226,13 +260,21 @@
       </header>
 
       <div class="card">
-        <h2>Clicker Lock</h2>
+        <h2>Presenters</h2>
+        <p style="color: #666; margin-bottom: 16px;">Connected presenters and their click access status</p>
+        <div id="presentersList">
+          <p style="color: #999; font-style: italic;">No presenters connected yet</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Global Clicker Lock</h2>
         <p style="color: #666; margin-bottom: 16px;">
           Status: <span class="status unlocked" id="lockStatus">Unlocked</span>
         </p>
         <div class="controls">
-          <button class="button danger" id="lockBtn" onclick="setLock(true)">Lock Clicker</button>
-          <button class="button success" id="unlockBtn" onclick="setLock(false)">Unlock Clicker</button>
+          <button class="button danger" id="lockBtn" onclick="setLock(true)">Lock All Clickers</button>
+          <button class="button success" id="unlockBtn" onclick="setLock(false)">Unlock All Clickers</button>
         </div>
       </div>
 
@@ -274,6 +316,10 @@
 
     socket.on('lock-changed', ({ locked }) => {
       updateLockStatus(locked);
+    });
+
+    socket.on('presenters-updated', ({ presenters }) => {
+      updatePresentersList(presenters);
     });
 
     function createSession() {
@@ -361,6 +407,47 @@
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(updateTimerDisplay, 100);
     });
+
+    function updatePresentersList(presenters) {
+      const container = document.getElementById('presentersList');
+      
+      if (!presenters || presenters.length === 0) {
+        container.innerHTML = '<p style="color: #999; font-style: italic;">No presenters connected yet</p>';
+        return;
+      }
+      
+      container.innerHTML = presenters.map(presenter => `
+        <div class="presenter-item">
+          <div class="presenter-info">
+            <div class="presenter-name">${escapeHtml(presenter.displayName)}</div>
+            <div class="presenter-status" style="color: ${presenter.clickAccessEnabled ? '#28a745' : '#dc3545'}">
+              ${presenter.clickAccessEnabled ? 'Click Access: Enabled' : 'Click Access: Suspended'}
+            </div>
+          </div>
+          <div class="presenter-controls">
+            ${presenter.clickAccessEnabled ? 
+              `<button class="button danger" onclick="togglePresenterAccess('${presenter.id}', false)">Suspend</button>` :
+              `<button class="button success" onclick="togglePresenterAccess('${presenter.id}', true)">Enable</button>`
+            }
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function togglePresenterAccess(presenterId, enabled) {
+      socket.emit('toggle-presenter-access', {
+        code: sessionCode,
+        token: producerToken,
+        presenterId,
+        enabled
+      });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
   </script>
 </body>
 </html>

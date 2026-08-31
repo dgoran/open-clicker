@@ -46,14 +46,15 @@ io.on('connection', (socket) => {
       producer: socket.id,
       producerToken,
       clickers: new Map(),
-      showClients: new Map()
+      showClients: new Map(),
+      presenters: new Map()
     });
     socket.join(code);
     socket.emit('session-created', { code, token: producerToken });
     console.log('Session created:', code);
   });
 
-  socket.on('join-session', ({ code, role }) => {
+  socket.on('join-session', ({ code, role, displayName }) => {
     const session = sessions.get(code);
     if (!session) {
       socket.emit('error', { message: 'Session not found' });
@@ -64,21 +65,41 @@ io.on('connection', (socket) => {
     socket.join(code);
     
     if (role === 'clicker') {
+      if (!displayName || displayName.trim() === '') {
+        socket.emit('error', { message: 'Display name is required' });
+        return;
+      }
+      
       session.clickers.set(socket.id, token);
+      session.presenters.set(socket.id, {
+        token,
+        displayName: displayName.trim(),
+        clickAccessEnabled: true
+      });
+      
       socket.emit('session-joined', {
         code,
         token,
         locked: session.locked,
         notes: session.notes,
         timer: session.timer,
-        timerStartedAt: session.timerStartedAt
+        timerStartedAt: session.timerStartedAt,
+        clickAccessEnabled: true
+      });
+      
+      io.to(session.producer).emit('presenters-updated', {
+        presenters: Array.from(session.presenters.entries()).map(([id, data]) => ({
+          id,
+          displayName: data.displayName,
+          clickAccessEnabled: data.clickAccessEnabled
+        }))
       });
     } else if (role === 'show-client') {
       session.showClients.set(socket.id, token);
       socket.emit('session-joined', { code, token });
     }
     
-    console.log(`Client ${socket.id} joined session ${code} as ${role}`);
+    console.log(`Client ${socket.id} joined session ${code} as ${role}${displayName ? ` (${displayName})` : ''}`);
   });
 
   socket.on('set-lock', ({ code, token, locked }) => {
@@ -162,6 +183,13 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Session is locked' });
       return;
     }
+    if (isClicker) {
+      const presenter = session.presenters.get(socket.id);
+      if (presenter && !presenter.clickAccessEnabled) {
+        socket.emit('error', { message: 'Your click access is suspended' });
+        return;
+      }
+    }
     io.to(code).emit('advance', { direction: 'next' });
     console.log(`Session ${code}: next`);
   });
@@ -182,8 +210,47 @@ io.on('connection', (socket) => {
       socket.emit('error', { message: 'Session is locked' });
       return;
     }
+    if (isClicker) {
+      const presenter = session.presenters.get(socket.id);
+      if (presenter && !presenter.clickAccessEnabled) {
+        socket.emit('error', { message: 'Your click access is suspended' });
+        return;
+      }
+    }
     io.to(code).emit('advance', { direction: 'prev' });
     console.log(`Session ${code}: prev`);
+  });
+
+  socket.on('toggle-presenter-access', ({ code, token, presenterId, enabled }) => {
+    const session = sessions.get(code);
+    if (!session) {
+      socket.emit('error', { message: 'Session not found' });
+      return;
+    }
+    if (session.producer !== socket.id || session.producerToken !== token) {
+      socket.emit('error', { message: 'Unauthorized: Invalid producer token' });
+      return;
+    }
+    
+    const presenter = session.presenters.get(presenterId);
+    if (!presenter) {
+      socket.emit('error', { message: 'Presenter not found' });
+      return;
+    }
+    
+    presenter.clickAccessEnabled = enabled;
+    
+    io.to(presenterId).emit('click-access-changed', { clickAccessEnabled: enabled });
+    
+    io.to(session.producer).emit('presenters-updated', {
+      presenters: Array.from(session.presenters.entries()).map(([id, data]) => ({
+        id,
+        displayName: data.displayName,
+        clickAccessEnabled: data.clickAccessEnabled
+      }))
+    });
+    
+    console.log(`Session ${code}: ${presenter.displayName} click access ${enabled ? 'enabled' : 'disabled'}`);
   });
 
   socket.on('disconnect', () => {
@@ -193,8 +260,20 @@ io.on('connection', (socket) => {
         io.to(code).emit('session-ended');
         console.log('Session ended:', code);
       } else {
+        const wasPresenter = session.presenters.has(socket.id);
         session.clickers.delete(socket.id);
         session.showClients.delete(socket.id);
+        session.presenters.delete(socket.id);
+        
+        if (wasPresenter && session.producer) {
+          io.to(session.producer).emit('presenters-updated', {
+            presenters: Array.from(session.presenters.entries()).map(([id, data]) => ({
+              id,
+              displayName: data.displayName,
+              clickAccessEnabled: data.clickAccessEnabled
+            }))
+          });
+        }
       }
     }
     console.log('Client disconnected:', socket.id);
