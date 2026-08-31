@@ -236,7 +236,8 @@
   <div id="join-screen">
     <h1>🎯 Clicker</h1>
     <div class="join-form">
-      <input type="text" id="codeInput" placeholder="Enter Code" autocomplete="off">
+      <input type="text" id="displayNameInput" placeholder="Your Name" autocomplete="off" style="text-transform: none; letter-spacing: normal;">
+      <input type="text" id="codeInput" placeholder="Session Code" autocomplete="off">
       <button class="button" onclick="joinSession()">Join Session</button>
       <div class="error" id="error"></div>
     </div>
@@ -275,6 +276,7 @@
     const socket = io();
     let sessionCode = null;
     let clickerToken = null;
+    let clickAccessEnabled = true;
     let wakeLock = null;
     let timerInterval = null;
     let timerEndTime = null;
@@ -304,6 +306,8 @@
     socket.on('session-joined', (data) => {
       sessionCode = data.code;
       clickerToken = data.token;
+      clickAccessEnabled = data.clickAccessEnabled !== undefined ? data.clickAccessEnabled : true;
+      
       document.getElementById('sessionCode').textContent = data.code;
       document.getElementById('join-screen').style.display = 'none';
       document.getElementById('clicker-screen').style.display = 'flex';
@@ -311,6 +315,8 @@
       if (data.locked !== undefined) {
         updateLockStatus(data.locked);
       }
+      
+      updateClickAccessStatus();
       
       if (data.notes) {
         updateNotes(data.notes);
@@ -334,6 +340,11 @@
       updateLockStatus(locked);
     });
 
+    socket.on('click-access-changed', ({ clickAccessEnabled: enabled }) => {
+      clickAccessEnabled = enabled;
+      updateClickAccessStatus();
+    });
+
     socket.on('notes-changed', ({ notes }) => {
       updateNotes(notes);
     });
@@ -355,10 +366,21 @@
     });
 
     function joinSession() {
+      const displayName = document.getElementById('displayNameInput').value.trim();
       const code = document.getElementById('codeInput').value.trim().toUpperCase();
-      if (code) {
-        socket.emit('join-session', { code, role: 'clicker' });
+      
+      if (!displayName) {
+        document.getElementById('error').textContent = 'Please enter your name';
+        return;
       }
+      
+      if (!code) {
+        document.getElementById('error').textContent = 'Please enter session code';
+        return;
+      }
+      
+      document.getElementById('error').textContent = '';
+      socket.emit('join-session', { code, role: 'clicker', displayName });
     }
 
     function sendCommand(direction) {
@@ -368,12 +390,30 @@
     }
 
     function updateLockStatus(locked) {
+      updateButtonStates(locked, clickAccessEnabled);
+    }
+
+    function updateClickAccessStatus() {
       const status = document.getElementById('lockStatus');
       const prevBtn = document.getElementById('prevBtn');
       const nextBtn = document.getElementById('nextBtn');
       
-      if (locked) {
+      const globalLocked = prevBtn.disabled && status.textContent === 'Locked';
+      updateButtonStates(globalLocked, clickAccessEnabled);
+    }
+
+    function updateButtonStates(globalLocked, accessEnabled) {
+      const status = document.getElementById('lockStatus');
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      
+      if (globalLocked) {
         status.textContent = 'Locked';
+        status.className = 'status locked';
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+      } else if (!accessEnabled) {
+        status.textContent = 'Access Suspended';
         status.className = 'status locked';
         prevBtn.disabled = true;
         nextBtn.disabled = true;
@@ -434,6 +474,12 @@
         display.className = 'timer warning';
       }
     }
+
+    document.getElementById('displayNameInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        joinSession();
+      }
+    });
 
     document.getElementById('codeInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
