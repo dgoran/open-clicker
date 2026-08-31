@@ -247,6 +247,47 @@
       white-space: pre-wrap;
       word-wrap: break-word;
     }
+    .header-controls {
+      margin-top: 12px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .toggle-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+      color: #999;
+    }
+    .toggle-switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      background: #444;
+      border-radius: 11px;
+      transition: background 0.3s;
+    }
+    .toggle-switch.active {
+      background: #667eea;
+    }
+    .toggle-slider {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+    .toggle-switch.active .toggle-slider {
+      transform: translateX(18px);
+    }
     @media (max-width: 400px) {
       .join-form {
         padding: 20px;
@@ -281,6 +322,20 @@
         <div class="clock" id="clock">--:--:--</div>
         <div class="timer idle" id="timer">No timer set</div>
       </div>
+      <div class="header-controls">
+        <div class="toggle-control" onclick="toggleMute()">
+          <div class="toggle-switch" id="muteToggle">
+            <div class="toggle-slider"></div>
+          </div>
+          <span id="muteLabel">Beep ON</span>
+        </div>
+        <div class="toggle-control" onclick="toggleCueOnly()">
+          <div class="toggle-switch" id="cueOnlyToggle">
+            <div class="toggle-slider"></div>
+          </div>
+          <span id="cueOnlyLabel">Cue Only OFF</span>
+        </div>
+      </div>
     </div>
     
     <div class="laser-pointer" id="laserPointer"></div>
@@ -310,6 +365,97 @@
     let clockInterval = null;
     let features = {};
     let screenshotInterval = null;
+    let audioContext = null;
+    let audioUnlocked = false;
+    
+    // Load settings from localStorage
+    let isMuted = localStorage.getItem('showMuted') === 'true';
+    let isCueOnly = localStorage.getItem('showCueOnly') === 'true';
+
+    // Initialize AudioContext (will be unlocked on first user gesture)
+    function initAudioContext() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      return audioContext;
+    }
+
+    // Unlock audio on first user interaction
+    function unlockAudio() {
+      if (!audioUnlocked) {
+        const ctx = initAudioContext();
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        audioUnlocked = true;
+      }
+    }
+
+    // Play beep sound using Web Audio API
+    function playBeep(frequency, duration) {
+      if (isMuted || !audioUnlocked) return;
+      
+      const ctx = initAudioContext();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      oscillator.frequency.value = frequency;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + duration);
+    }
+
+    // Toggle mute
+    function toggleMute() {
+      isMuted = !isMuted;
+      localStorage.setItem('showMuted', isMuted);
+      updateMuteUI();
+    }
+
+    // Update mute UI
+    function updateMuteUI() {
+      const toggle = document.getElementById('muteToggle');
+      const label = document.getElementById('muteLabel');
+      if (isMuted) {
+        toggle.classList.remove('active');
+        label.textContent = 'Beep OFF';
+      } else {
+        toggle.classList.add('active');
+        label.textContent = 'Beep ON';
+      }
+    }
+
+    // Toggle cue-only mode
+    function toggleCueOnly() {
+      isCueOnly = !isCueOnly;
+      localStorage.setItem('showCueOnly', isCueOnly);
+      updateCueOnlyUI();
+    }
+
+    // Update cue-only UI
+    function updateCueOnlyUI() {
+      const toggle = document.getElementById('cueOnlyToggle');
+      const label = document.getElementById('cueOnlyLabel');
+      if (isCueOnly) {
+        toggle.classList.add('active');
+        label.textContent = 'Cue Only ON';
+      } else {
+        toggle.classList.remove('active');
+        label.textContent = 'Cue Only OFF';
+      }
+    }
 
     function createLEDTriangle(container, direction) {
       const rows = direction === 'left' ? 7 : 7;
@@ -351,6 +497,10 @@
       document.getElementById('join-screen').style.display = 'none';
       document.getElementById('cue-display').style.display = 'flex';
       
+      // Initialize UI states
+      updateMuteUI();
+      updateCueOnlyUI();
+      
       if (data.notes) {
         updateNotes(data.notes);
       }
@@ -376,14 +526,25 @@
         document.getElementById('nextIndicator') : 
         document.getElementById('prevIndicator');
       
+      // Always light the LED indicator
       indicator.classList.add('active');
       
-      const event = new KeyboardEvent('keydown', {
-        key: direction === 'next' ? 'ArrowRight' : 'ArrowLeft',
-        code: direction === 'next' ? 'ArrowRight' : 'ArrowLeft',
-        bubbles: true
-      });
-      document.dispatchEvent(event);
+      // Play beep if not muted
+      if (direction === 'next') {
+        playBeep(800, 0.1); // Higher pitch for next
+      } else {
+        playBeep(400, 0.12); // Lower pitch for prev
+      }
+      
+      // Only dispatch keyboard event if NOT in cue-only mode
+      if (!isCueOnly) {
+        const event = new KeyboardEvent('keydown', {
+          key: direction === 'next' ? 'ArrowRight' : 'ArrowLeft',
+          code: direction === 'next' ? 'ArrowRight' : 'ArrowLeft',
+          bubbles: true
+        });
+        document.dispatchEvent(event);
+      }
       
       setTimeout(() => {
         indicator.classList.remove('active');
@@ -438,6 +599,9 @@
         document.getElementById('error').textContent = 'Please enter session code';
         return;
       }
+      
+      // Unlock audio on join button click
+      unlockAudio();
       
       document.getElementById('error').textContent = '';
       socket.emit('join-session', { code, role: 'show-client' });
@@ -544,6 +708,10 @@
         joinSession();
       }
     });
+
+    // Unlock audio on any user interaction
+    document.addEventListener('click', unlockAudio, { once: true });
+    document.addEventListener('touchstart', unlockAudio, { once: true });
   </script>
 </body>
 </html>
