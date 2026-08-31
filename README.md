@@ -218,9 +218,79 @@ To use your phone as a clicker over local Wi-Fi:
    http://<YOUR_IP>:3000/clicker.html
    ```
 
-### Public Internet Deployment
+### Public Internet Deployment (Render)
 
 Open Clicker's token-based authentication makes it safe to deploy on the public internet. Session codes are cryptographically random, and all privileged operations require role-specific tokens that are automatically issued at creation/join time.
+
+#### Render Deployment with Persistent Storage
+
+**Important**: User data and sessions require persistent storage. Render's default filesystem is ephemeral (wiped on every deploy/restart). You must attach a persistent disk.
+
+**Deployment Steps:**
+
+1. **Create Web Service** on Render:
+   - Connect your GitHub repository
+   - Choose "Node" runtime
+   - Build command: `npm install`
+   - Start command: `npm start`
+
+2. **Attach Persistent Disk**:
+   - In your Render service dashboard, go to "Disks"
+   - Click "Add Disk"
+   - Name: `open-clicker-data` (or any name)
+   - Mount Path: `/data`
+   - Size: 1 GB (sufficient for user database)
+   - Click "Create"
+
+3. **Set Environment Variables**:
+   ```
+   SESSION_SECRET=<generate-secure-random-string>
+   SUPERADMIN_USER=admin
+   SUPERADMIN_PASSWORD=<your-secure-password>
+   ```
+   
+   To generate a secure SESSION_SECRET:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+
+4. **Deploy**: Render will automatically deploy your application
+
+**Important Notes:**
+- The SQLite database is stored at `/data/users.sqlite` on the persistent disk
+- **Single Instance Required**: Persistent disks only work with a single instance. Do not enable autoscaling or multiple instances.
+- **No Zero-Downtime Deploys**: Deploys will cause brief downtime while the disk is remounted
+- User accounts and sessions will persist across deploys and restarts
+- Access the superadmin panel at `https://your-app.onrender.com/superadmin`
+
+**Alternative: Using render.yaml Blueprint**
+
+If your repository includes `render.yaml`, Render will automatically configure the disk:
+
+```yaml
+services:
+  - type: web
+    name: open-clicker
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SUPERADMIN_USER
+        value: admin
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+    disk:
+      name: open-clicker-data
+      mountPath: /data
+      sizeGB: 1
+```
+
+You'll still need to set `SUPERADMIN_PASSWORD` manually in the dashboard (it's marked `sync: false` for security).
 
 ### Custom Port
 

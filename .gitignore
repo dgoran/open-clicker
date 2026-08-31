@@ -13,3 +13,8 @@ yarn-error.log*
 *~
 users.json
 test-users.json
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+data/

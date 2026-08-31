@@ -1,265 +1,279 @@
 const { expect } = require('chai');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcrypt');
 
-describe('Superadmin', () => {
-  const testUsersFile = path.join(__dirname, '..', 'test-users.json');
-  const SALT_ROUNDS = 10;
+describe('Superadmin with SQLite', () => {
+  let serverModule;
+  let testDbPath;
+  const baseURL = 'http://localhost:3000';
+  
+  before(() => {
+    testDbPath = path.join(__dirname, '..', 'test-users.sqlite');
+    
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
+    }
+    
+    process.env.USERS_DB = testDbPath;
+    process.env.SESSION_SECRET = 'test-secret';
+    process.env.SUPERADMIN_USER = 'admin';
+    process.env.SUPERADMIN_PASSWORD = 'testpassword123';
+    
+    serverModule = require('../server.js');
+  });
 
-  afterEach(() => {
-    if (fs.existsSync(testUsersFile)) {
-      fs.unlinkSync(testUsersFile);
+  after(() => {
+    try {
+      serverModule.closeDatabase();
+    } catch (e) {
+      // Ignore close errors
+    }
+    
+    if (fs.existsSync(testDbPath)) {
+      fs.unlinkSync(testDbPath);
     }
   });
 
-  describe('User Persistence', () => {
-    it('should save and load users from JSON file', () => {
-      const testUsers = [
-        {
-          userId: 'test123',
-          email: 'test@example.com',
-          passwordHash: '$2b$10$abc123',
-          createdAt: Date.now()
-        },
-        {
-          userId: 'test456',
-          email: 'another@example.com',
-          passwordHash: '$2b$10$def456',
-          createdAt: Date.now()
-        }
-      ];
-      
-      fs.writeFileSync(testUsersFile, JSON.stringify(testUsers, null, 2));
-      expect(fs.existsSync(testUsersFile)).to.be.true;
-      
-      const data = fs.readFileSync(testUsersFile, 'utf8');
-      const loaded = JSON.parse(data);
-      
-      expect(loaded).to.have.lengthOf(2);
-      expect(loaded[0].email).to.equal('test@example.com');
-      expect(loaded[1].email).to.equal('another@example.com');
-    });
-
-    it('should handle empty users file', () => {
-      fs.writeFileSync(testUsersFile, JSON.stringify([], null, 2));
-      const data = fs.readFileSync(testUsersFile, 'utf8');
-      const loaded = JSON.parse(data);
-      
-      expect(loaded).to.be.an('array');
-      expect(loaded).to.have.lengthOf(0);
-    });
-
-    it('should convert user Map to Array for JSON storage', () => {
-      const usersMap = new Map();
-      usersMap.set('test@example.com', {
-        userId: 'test123',
-        email: 'test@example.com',
-        passwordHash: '$2b$10$abc123',
-        createdAt: Date.now()
+  afterEach(() => {
+    try {
+      const users = serverModule.getAllUsers();
+      users.forEach(user => {
+        serverModule.deleteUser(user.userId);
       });
-      
-      const usersArray = Array.from(usersMap.values());
-      expect(usersArray).to.be.an('array');
-      expect(usersArray).to.have.lengthOf(1);
-      expect(usersArray[0].email).to.equal('test@example.com');
-    });
-
-    it('should convert user Array to Map when loading', () => {
-      const usersArray = [
-        {
-          userId: 'test123',
-          email: 'test@example.com',
-          passwordHash: '$2b$10$abc123',
-          createdAt: Date.now()
-        }
-      ];
-      
-      const usersMap = new Map();
-      usersArray.forEach(user => {
-        usersMap.set(user.email, user);
-      });
-      
-      expect(usersMap.size).to.equal(1);
-      expect(usersMap.has('test@example.com')).to.be.true;
-      expect(usersMap.get('test@example.com').userId).to.equal('test123');
-    });
+    } catch (e) {
+      // Ignore cleanup errors
+    }
   });
 
-  describe('Superadmin Authentication', () => {
-    it('should validate superadmin credentials', () => {
-      const superadminUser = 'admin';
-      const superadminPassword = 'testpassword123';
-      
-      const inputUsername = 'admin';
-      const inputPassword = 'testpassword123';
-      
-      const isValid = inputUsername === superadminUser && inputPassword === superadminPassword;
-      expect(isValid).to.be.true;
-    });
-
-    it('should reject invalid username', () => {
-      const superadminUser = 'admin';
-      const superadminPassword = 'testpassword123';
-      
-      const inputUsername = 'wronguser';
-      const inputPassword = 'testpassword123';
-      
-      const isValid = inputUsername === superadminUser && inputPassword === superadminPassword;
-      expect(isValid).to.be.false;
-    });
-
-    it('should reject invalid password', () => {
-      const superadminUser = 'admin';
-      const superadminPassword = 'testpassword123';
-      
-      const inputUsername = 'admin';
-      const inputPassword = 'wrongpassword';
-      
-      const isValid = inputUsername === superadminUser && inputPassword === superadminPassword;
-      expect(isValid).to.be.false;
-    });
-
-    it('should require SUPERADMIN_PASSWORD to be set', () => {
-      const superadminPassword = undefined;
-      
-      expect(superadminPassword).to.be.undefined;
-    });
-
-    it('should use default username "admin"', () => {
-      const superadminUser = process.env.SUPERADMIN_USER || 'admin';
-      
-      expect(superadminUser).to.equal('admin');
-    });
-  });
-
-  describe('User Management', () => {
-    it('should add user to users map', async () => {
-      const users = new Map();
-      const email = 'newuser@example.com';
+  describe('SQLite Database Functions', () => {
+    it('should create and retrieve a user', async () => {
+      const email = 'test@example.com';
       const password = 'password123';
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-      const userId = 'generated-user-id';
+      const passwordHash = await bcrypt.hash(password, 10);
       
-      users.set(email, {
-        userId,
-        email,
-        passwordHash,
-        createdAt: Date.now()
-      });
+      const user = serverModule.createUser(email, passwordHash);
       
-      expect(users.size).to.equal(1);
-      expect(users.has(email)).to.be.true;
+      expect(user).to.have.property('userId');
+      expect(user).to.have.property('email', email);
+      expect(user).to.have.property('createdAt');
+      
+      const retrieved = serverModule.getUser(email);
+      expect(retrieved).to.not.be.undefined;
+      expect(retrieved.email).to.equal(email);
+      expect(retrieved.userId).to.equal(user.userId);
     });
 
-    it('should remove user from users map', () => {
-      const users = new Map();
-      const email = 'user@example.com';
+    it('should store bcrypt hash, not plaintext password', async () => {
+      const email = 'hash-test@example.com';
+      const password = 'mySecretPassword123';
+      const passwordHash = await bcrypt.hash(password, 10);
       
-      users.set(email, {
-        userId: 'test123',
-        email,
-        passwordHash: '$2b$10$abc123',
-        createdAt: Date.now()
-      });
+      serverModule.createUser(email, passwordHash);
       
-      expect(users.size).to.equal(1);
+      const retrieved = serverModule.getUser(email);
+      expect(retrieved.passwordHash).to.not.equal(password);
+      expect(retrieved.passwordHash).to.include('$2b$');
+      expect(retrieved.passwordHash.length).to.be.greaterThan(password.length);
       
-      users.delete(email);
-      
-      expect(users.size).to.equal(0);
-      expect(users.has(email)).to.be.false;
-    });
-
-    it('should find user by userId', () => {
-      const users = new Map();
-      const targetUserId = 'test123';
-      
-      users.set('user1@example.com', {
-        userId: 'other456',
-        email: 'user1@example.com',
-        passwordHash: '$2b$10$abc123',
-        createdAt: Date.now()
-      });
-      
-      users.set('user2@example.com', {
-        userId: targetUserId,
-        email: 'user2@example.com',
-        passwordHash: '$2b$10$def456',
-        createdAt: Date.now()
-      });
-      
-      let found = null;
-      for (const [email, user] of users.entries()) {
-        if (user.userId === targetUserId) {
-          found = { email, user };
-          break;
-        }
-      }
-      
-      expect(found).to.not.be.null;
-      expect(found.user.userId).to.equal(targetUserId);
-      expect(found.email).to.equal('user2@example.com');
-    });
-  });
-
-  describe('User Authentication with Persisted Data', () => {
-    it('should authenticate user with correct password', async () => {
-      const password = 'testpassword123';
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-      
-      const user = {
-        userId: 'test123',
-        email: 'test@example.com',
-        passwordHash,
-        createdAt: Date.now()
-      };
-      
-      const inputPassword = 'testpassword123';
-      const isValid = await bcrypt.compare(inputPassword, user.passwordHash);
-      
+      const isValid = await bcrypt.compare(password, retrieved.passwordHash);
       expect(isValid).to.be.true;
     });
 
-    it('should reject incorrect password', async () => {
-      const password = 'testpassword123';
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    it('should list all users without password hashes', () => {
+      serverModule.createUser('user1@example.com', 'hash1');
+      serverModule.createUser('user2@example.com', 'hash2');
       
-      const user = {
-        userId: 'test123',
-        email: 'test@example.com',
-        passwordHash,
-        createdAt: Date.now()
-      };
+      const users = serverModule.getAllUsers();
       
-      const inputPassword = 'wrongpassword';
-      const isValid = await bcrypt.compare(inputPassword, user.passwordHash);
+      expect(users).to.be.an('array');
+      expect(users.length).to.be.at.least(2);
       
-      expect(isValid).to.be.false;
+      const user = users.find(u => u.email === 'user1@example.com');
+      expect(user).to.have.property('email');
+      expect(user).to.have.property('userId');
+      expect(user).to.have.property('createdAt');
+      expect(user).to.not.have.property('passwordHash');
     });
 
-    it('should persist password hash, not plaintext', async () => {
-      const password = 'testpassword123';
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    it('should delete a user by userId', async () => {
+      const email = 'delete-test@example.com';
+      const passwordHash = await bcrypt.hash('password', 10);
+      const user = serverModule.createUser(email, passwordHash);
       
-      expect(passwordHash).to.not.equal(password);
-      expect(passwordHash).to.include('$2b$');
-      expect(passwordHash.length).to.be.greaterThan(password.length);
+      const countBefore = serverModule.getUserCount();
+      
+      const deleted = serverModule.deleteUser(user.userId);
+      expect(deleted).to.be.true;
+      
+      const countAfter = serverModule.getUserCount();
+      expect(countAfter).to.equal(countBefore - 1);
+      
+      const retrieved = serverModule.getUser(email);
+      expect(retrieved).to.be.undefined;
+    });
+
+    it('should return false when deleting non-existent user', () => {
+      const deleted = serverModule.deleteUser('nonexistent-id');
+      expect(deleted).to.be.false;
+    });
+
+    it('should handle empty or near-empty database', () => {
+      const count = serverModule.getUserCount();
+      expect(count).to.be.at.least(0);
+      
+      const users = serverModule.getAllUsers();
+      expect(users).to.be.an('array');
+    });
+
+    it('should normalize email to lowercase', async () => {
+      const email = 'Test@Example.COM';
+      const passwordHash = await bcrypt.hash('password', 10);
+      
+      const user = serverModule.createUser(email, passwordHash);
+      expect(user.email).to.equal('test@example.com');
+      
+      const retrieved = serverModule.getUser('TEST@EXAMPLE.COM');
+      expect(retrieved).to.not.be.undefined;
+      expect(retrieved.email).to.equal('test@example.com');
     });
   });
 
-  describe('Environment Configuration', () => {
-    it('should support custom USERS_FILE path', () => {
-      const customPath = '/custom/path/users.json';
-      const usersFile = customPath;
-      
-      expect(usersFile).to.equal(customPath);
+  describe('HTTP Superadmin Authentication', () => {
+    let cookies = '';
+    let serverStarted = false;
+
+    before((done) => {
+      if (!serverModule.server.listening) {
+        serverModule.server.listen(3000, () => {
+          serverStarted = true;
+          done();
+        });
+      } else {
+        done();
+      }
     });
 
-    it('should support SESSION_SECRET from env', () => {
-      const sessionSecret = 'my-secret-key';
-      expect(sessionSecret).to.equal('my-secret-key');
+    after((done) => {
+      if (serverStarted) {
+        serverModule.server.close(() => done());
+      } else {
+        done();
+      }
+    });
+
+    function makeRequest(options, postData = null) {
+      return new Promise((resolve, reject) => {
+        const reqOptions = {
+          hostname: 'localhost',
+          port: 3000,
+          ...options,
+          headers: {
+            ...options.headers,
+            'Cookie': cookies
+          }
+        };
+
+        const req = http.request(reqOptions, (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            if (res.headers['set-cookie']) {
+              cookies = res.headers['set-cookie'].map(c => c.split(';')[0]).join('; ');
+            }
+            resolve({ statusCode: res.statusCode, data, headers: res.headers });
+          });
+        });
+
+        req.on('error', reject);
+        
+        if (postData) {
+          req.write(postData);
+        }
+        
+        req.end();
+      });
+    }
+
+    it('should reject superadmin login without SUPERADMIN_PASSWORD', async () => {
+      const oldPassword = process.env.SUPERADMIN_PASSWORD;
+      delete process.env.SUPERADMIN_PASSWORD;
+
+      const postData = JSON.stringify({
+        username: 'admin',
+        password: 'testpassword123'
+      });
+
+      const response = await makeRequest({
+        path: '/api/superadmin/login',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      }, postData);
+
+      expect(response.statusCode).to.equal(500);
+      const body = JSON.parse(response.data);
+      expect(body.error).to.include('not configured');
+
+      process.env.SUPERADMIN_PASSWORD = oldPassword;
+    });
+
+    it('should reject invalid superadmin credentials', async () => {
+      const postData = JSON.stringify({
+        username: 'admin',
+        password: 'wrongpassword'
+      });
+
+      const response = await makeRequest({
+        path: '/api/superadmin/login',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      }, postData);
+
+      expect(response.statusCode).to.equal(401);
+      const body = JSON.parse(response.data);
+      expect(body.error).to.include('Invalid');
+    });
+
+    it('should accept valid superadmin credentials', async () => {
+      const postData = JSON.stringify({
+        username: 'admin',
+        password: 'testpassword123'
+      });
+
+      const response = await makeRequest({
+        path: '/api/superadmin/login',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      }, postData);
+
+      expect(response.statusCode).to.equal(200);
+      const body = JSON.parse(response.data);
+      expect(body.success).to.be.true;
+    });
+  });
+
+  describe('Database Persistence', () => {
+    it('should persist user data to database file on disk', async () => {
+      const email = 'persist@example.com';
+      const password = 'password123';
+      const passwordHash = await bcrypt.hash(password, 10);
+      
+      serverModule.createUser(email, passwordHash);
+
+      expect(fs.existsSync(testDbPath)).to.be.true;
+      
+      const stats = fs.statSync(testDbPath);
+      expect(stats.size).to.be.greaterThan(0);
     });
   });
 });
-

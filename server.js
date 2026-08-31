@@ -7,6 +7,7 @@ const bcrypt = require('bcrypt');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const fs = require('fs');
+const Database = require('better-sqlite3');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,37 +15,77 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const SALT_ROUNDS = 10;
-const USERS_FILE = process.env.USERS_FILE || path.join(__dirname, 'users.json');
 
-function loadUsers() {
-  try {
-    if (fs.existsSync(USERS_FILE)) {
-      const data = fs.readFileSync(USERS_FILE, 'utf8');
-      const usersArray = JSON.parse(data);
-      const users = new Map();
-      usersArray.forEach(user => {
-        users.set(user.email, user);
-      });
-      console.log(`Loaded ${users.size} users from ${USERS_FILE}`);
-      return users;
-    }
-  } catch (error) {
-    console.error('Error loading users:', error);
+function getDbPath() {
+  if (process.env.USERS_DB || process.env.DATABASE_PATH) {
+    return process.env.USERS_DB || process.env.DATABASE_PATH;
   }
-  return new Map();
+  
+  if (process.env.RENDER) {
+    return '/data/users.sqlite';
+  }
+  
+  return path.join(__dirname, 'users.sqlite');
 }
 
-function saveUsers(users) {
-  try {
-    const usersArray = Array.from(users.values());
-    fs.writeFileSync(USERS_FILE, JSON.stringify(usersArray, null, 2), 'utf8');
-    console.log(`Saved ${usersArray.length} users to ${USERS_FILE}`);
-  } catch (error) {
-    console.error('Error saving users:', error);
+const DB_PATH = getDbPath();
+
+function initDatabase() {
+  const dir = path.dirname(DB_PATH);
+  
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log(`Created directory: ${dir}`);
   }
+  
+  const db = Database(DB_PATH);
+  
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      userId TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      passwordHash TEXT NOT NULL,
+      createdAt INTEGER NOT NULL
+    )
+  `);
+  
+  console.log(`Database initialized at ${DB_PATH}`);
+  return db;
 }
 
-const users = loadUsers();
+const db = initDatabase();
+
+function getUser(email) {
+  const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+  return stmt.get(email.toLowerCase().trim());
+}
+
+function getAllUsers() {
+  const stmt = db.prepare('SELECT userId, email, createdAt FROM users ORDER BY createdAt DESC');
+  return stmt.all();
+}
+
+function createUser(email, passwordHash) {
+  const userId = crypto.randomBytes(16).toString('hex');
+  const emailLower = email.toLowerCase().trim();
+  const createdAt = Date.now();
+  
+  const stmt = db.prepare('INSERT INTO users (userId, email, passwordHash, createdAt) VALUES (?, ?, ?, ?)');
+  stmt.run(userId, emailLower, passwordHash, createdAt);
+  
+  return { userId, email: emailLower, createdAt };
+}
+
+function deleteUser(userId) {
+  const stmt = db.prepare('DELETE FROM users WHERE userId = ?');
+  const result = stmt.run(userId);
+  return result.changes > 0;
+}
+
+function getUserCount() {
+  const stmt = db.prepare('SELECT COUNT(*) as count FROM users');
+  return stmt.get().count;
+}
 const sessions = new Map();
 
 function generateCode() {
@@ -100,25 +141,18 @@ app.post('/api/signup', async (req, res) => {
     
     const emailLower = email.toLowerCase().trim();
     
-    if (users.has(emailLower)) {
+    const existingUser = getUser(emailLower);
+    if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
     }
     
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    const userId = crypto.randomBytes(16).toString('hex');
+    const user = createUser(emailLower, passwordHash);
     
-    users.set(emailLower, {
-      userId,
-      email: emailLower,
-      passwordHash,
-      createdAt: Date.now()
-    });
-    saveUsers(users);
+    req.session.userId = user.userId;
+    req.session.email = user.email;
     
-    req.session.userId = userId;
-    req.session.email = emailLower;
-    
-    res.json({ success: true, email: emailLower });
+    res.json({ success: true, email: user.email });
   } catch (error) {
     console.error('Signup error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -134,7 +168,7 @@ app.post('/api/login', async (req, res) => {
     }
     
     const emailLower = email.toLowerCase().trim();
-    const user = users.get(emailLower);
+    const user = getUser(emailLower);
     
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -215,11 +249,7 @@ function requireSuperadmin(req, res, next) {
 
 app.get('/api/superadmin/users', requireSuperadmin, (req, res) => {
   try {
-    const usersList = Array.from(users.values()).map(user => ({
-      userId: user.userId,
-      email: user.email,
-      createdAt: user.createdAt
-    }));
+    const usersList = getAllUsers();
     res.json({ users: usersList });
   } catch (error) {
     console.error('List users error:', error);
@@ -241,22 +271,15 @@ app.post('/api/superadmin/users', requireSuperadmin, async (req, res) => {
     
     const emailLower = email.toLowerCase().trim();
     
-    if (users.has(emailLower)) {
+    const existingUser = getUser(emailLower);
+    if (existingUser) {
       return res.status(400).json({ error: 'Email already registered' });
     }
     
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    const userId = crypto.randomBytes(16).toString('hex');
+    const user = createUser(emailLower, passwordHash);
     
-    users.set(emailLower, {
-      userId,
-      email: emailLower,
-      passwordHash,
-      createdAt: Date.now()
-    });
-    saveUsers(users);
-    
-    res.json({ success: true, userId, email: emailLower });
+    res.json({ success: true, userId: user.userId, email: user.email });
   } catch (error) {
     console.error('Add user error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -267,20 +290,12 @@ app.delete('/api/superadmin/users/:userId', requireSuperadmin, (req, res) => {
   try {
     const { userId } = req.params;
     
-    let deleted = false;
-    for (const [email, user] of users.entries()) {
-      if (user.userId === userId) {
-        users.delete(email);
-        deleted = true;
-        break;
-      }
-    }
+    const deleted = deleteUser(userId);
     
     if (!deleted) {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    saveUsers(users);
     res.json({ success: true });
   } catch (error) {
     console.error('Delete user error:', error);
@@ -651,15 +666,38 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Open Clicker server running on http://localhost:${PORT}`);
-  
-  if (!process.env.SESSION_SECRET) {
-    console.warn('WARNING: SESSION_SECRET not set in environment. Sessions will not persist across restarts.');
-    console.warn('Set SESSION_SECRET in your environment variables for production.');
+function closeDatabase() {
+  if (db) {
+    db.close();
   }
-  
-  if (!process.env.SUPERADMIN_PASSWORD) {
-    console.warn('WARNING: SUPERADMIN_PASSWORD not set. Superadmin panel will not be accessible.');
-  }
-});
+}
+
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`Open Clicker server running on http://localhost:${PORT}`);
+    console.log(`Database: ${DB_PATH}`);
+    console.log(`Users in database: ${getUserCount()}`);
+    
+    if (!process.env.SESSION_SECRET) {
+      console.warn('WARNING: SESSION_SECRET not set in environment. Sessions will not persist across restarts.');
+      console.warn('Set SESSION_SECRET in your environment variables for production.');
+    }
+    
+    if (!process.env.SUPERADMIN_PASSWORD) {
+      console.warn('WARNING: SUPERADMIN_PASSWORD not set. Superadmin panel will not be accessible.');
+    }
+  });
+}
+
+module.exports = {
+  db,
+  getUser,
+  getAllUsers,
+  createUser,
+  deleteUser,
+  getUserCount,
+  closeDatabase,
+  DB_PATH,
+  app,
+  server
+};
