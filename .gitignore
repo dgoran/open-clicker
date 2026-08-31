@@ -11,3 +11,10 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+users.json
+test-users.json
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+data/

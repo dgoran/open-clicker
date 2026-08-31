@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f5f5">
+  <title>Superadmin - Open Clicker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    header {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 24px;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .card h2 {
+      color: #333;
+      margin-bottom: 14px;
+      font-size: 18px;
+    }
+    .button {
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+      min-height: 44px;
+    }
+    .button:hover {
+      background: #5568d3;
+    }
+    .button:active {
+      transform: scale(0.98);
+    }
+    .button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .button.danger {
+      background: #dc3545;
+    }
+    .button.danger:hover {
+      background: #c82333;
+    }
+    .button.secondary {
+      background: #6c757d;
+    }
+    .button.secondary:hover {
+      background: #5a6268;
+    }
+    input[type="email"], input[type="password"], input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+    input[type="email"]:focus, input[type="password"]:focus, input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .error {
+      color: #dc3545;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+    .success {
+      color: #28a745;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+    .user-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .user-info {
+      flex: 1;
+      min-width: 200px;
+    }
+    .user-email {
+      font-weight: 600;
+      color: #333;
+      font-size: 15px;
+    }
+    .user-meta {
+      font-size: 13px;
+      color: #666;
+      margin-top: 4px;
+    }
+    .user-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .user-actions .button {
+      padding: 8px 16px;
+      font-size: 14px;
+      min-height: 36px;
+    }
+    #auth-screen, #admin-panel {
+      display: none;
+    }
+    #auth-screen.active, #admin-panel.active {
+      display: block;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    @media (max-width: 480px) {
+      body {
+        padding: 12px;
+      }
+      header, .card {
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      .user-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .user-actions {
+        width: 100%;
+      }
+      .user-actions .button {
+        flex: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="auth-screen">
+      <header>
+        <h1>Superadmin Login</h1>
+        <p style="color: #666;">Administrator access only</p>
+      </header>
+      
+      <div class="card">
+        <h2>Login</h2>
+        <input type="text" id="username" placeholder="Username" autocomplete="username">
+        <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+        <button class="button" onclick="login()" style="width: 100%;">Login</button>
+        <div class="error" id="loginError"></div>
+      </div>
+    </div>
+
+    <div id="admin-panel">
+      <header>
+        <h1>Superadmin Panel</h1>
+        <p style="color: #666;">Manage Open Clicker users</p>
+        <button class="button secondary" onclick="logout()" style="margin-top: 12px;">Logout</button>
+      </header>
+
+      <div class="card">
+        <h2>Add New User</h2>
+        <input type="email" id="newUserEmail" placeholder="Email" autocomplete="off">
+        <input type="password" id="newUserPassword" placeholder="Password (min 6 characters)" autocomplete="new-password">
+        <button class="button" onclick="addUser()">Add User</button>
+        <div class="error" id="addUserError"></div>
+        <div class="success" id="addUserSuccess"></div>
+      </div>
+
+      <div class="card">
+        <h2>Users</h2>
+        <div id="usersList">
+          <p style="color: #999; font-style: italic;">Loading users...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let authenticated = false;
+
+    function showAuth() {
+      document.getElementById('auth-screen').classList.add('active');
+      document.getElementById('admin-panel').classList.remove('active');
+    }
+
+    function showAdminPanel() {
+      document.getElementById('auth-screen').classList.remove('active');
+      document.getElementById('admin-panel').classList.add('active');
+      loadUsers();
+    }
+
+    async function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      
+      if (!username || !password) {
+        document.getElementById('loginError').textContent = 'Please enter username and password';
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/superadmin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          authenticated = true;
+          showAdminPanel();
+        } else {
+          document.getElementById('loginError').textContent = data.error || 'Login failed';
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        document.getElementById('loginError').textContent = 'Network error';
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch('/api/superadmin/logout', { method: 'POST' });
+        authenticated = false;
+        showAuth();
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    }
+
+    async function loadUsers() {
+      try {
+        const response = await fetch('/api/superadmin/users');
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            showAuth();
+            return;
+          }
+          throw new Error('Failed to load users');
+        }
+        
+        const data = await response.json();
+        displayUsers(data.users);
+      } catch (error) {
+        console.error('Load users error:', error);
+        document.getElementById('usersList').innerHTML = '<p style="color: #dc3545;">Error loading users</p>';
+      }
+    }
+
+    function displayUsers(users) {
+      const container = document.getElementById('usersList');
+      
+      if (!users || users.length === 0) {
+        container.innerHTML = '<p style="color: #999; font-style: italic;">No users yet</p>';
+        return;
+      }
+      
+      container.innerHTML = users.map(user => `
+        <div class="user-item">
+          <div class="user-info">
+            <div class="user-email">${escapeHtml(user.email)}</div>
+            <div class="user-meta">ID: ${escapeHtml(user.userId)}</div>
+            <div class="user-meta">Created: ${new Date(user.createdAt).toLocaleString()}</div>
+          </div>
+          <div class="user-actions">
+            <button class="button danger" onclick="deleteUser('${user.userId}', '${escapeHtml(user.email)}')">Delete</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function addUser() {
+      const email = document.getElementById('newUserEmail').value.trim();
+      const password = document.getElementById('newUserPassword').value;
+      
+      document.getElementById('addUserError').textContent = '';
+      document.getElementById('addUserSuccess').textContent = '';
+      
+      if (!email || !password) {
+        document.getElementById('addUserError').textContent = 'Please enter email and password';
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/superadmin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          document.getElementById('addUserSuccess').textContent = `User ${email} added successfully`;
+          document.getElementById('newUserEmail').value = '';
+          document.getElementById('newUserPassword').value = '';
+          loadUsers();
+        } else {
+          document.getElementById('addUserError').textContent = data.error || 'Failed to add user';
+        }
+      } catch (error) {
+        console.error('Add user error:', error);
+        document.getElementById('addUserError').textContent = 'Network error';
+      }
+    }
+
+    async function deleteUser(userId, email) {
+      if (!confirm(`Are you sure you want to delete user ${email}?`)) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/superadmin/users/${userId}`, {
+          method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          loadUsers();
+        } else {
+          alert(data.error || 'Failed to delete user');
+        }
+      } catch (error) {
+        console.error('Delete user error:', error);
+        alert('Network error');
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    document.getElementById('username').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') login();
+    });
+
+    document.getElementById('password').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') login();
+    });
+
+    showAuth();
+  </script>
+</body>
+</html>
