@@ -2,63 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#1a1a1a">
-  <title>Show Client - Open Clicker</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Show Cue Display - Open Clicker</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html {
+      height: 100%;
+      overflow: hidden;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #1a1a1a;
       color: white;
-      min-height: 100vh;
+      height: 100%;
+      overflow: hidden;
+      touch-action: manipulation;
+      position: fixed;
+      width: 100%;
+    }
+    #join-screen {
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      min-height: 100vh;
+      min-height: 100dvh;
       padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
     }
-    .container {
-      width: 100%;
-      max-width: 600px;
-      background: #2a2a2a;
-      border-radius: 16px;
-      padding: clamp(24px, 6vw, 48px);
-      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-    }
     h1 {
-      margin-bottom: clamp(20px, 5vw, 32px);
-      font-size: clamp(22px, 5.5vw, 32px);
-      text-align: center;
+      margin-bottom: 24px;
+      font-size: clamp(24px, 6vw, 32px);
+    }
+    .join-form {
+      background: #2a2a2a;
+      padding: 24px;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 400px;
     }
     .info {
       background: #1a1a1a;
-      padding: clamp(16px, 4vw, 24px);
+      padding: 16px;
       border-radius: 12px;
-      margin-bottom: clamp(20px, 5vw, 32px);
-      text-align: center;
-    }
-    .info p {
+      margin-bottom: 16px;
+      font-size: 13px;
       color: #999;
-      margin-bottom: 12px;
-      line-height: 1.6;
-      font-size: clamp(13px, 3.2vw, 14px);
-    }
-    .info p:last-child {
-      margin-bottom: 0;
+      line-height: 1.5;
     }
     .info strong {
       color: white;
     }
-    .info code {
-      font-size: clamp(12px, 3vw, 14px);
-    }
-    .join-form {
-      margin-bottom: clamp(20px, 5vw, 32px);
-    }
     input[type="text"] {
       width: 100%;
-      padding: 14px;
-      font-size: 18px;
+      padding: 16px;
+      font-size: 20px;
       border: 2px solid #444;
       border-radius: 12px;
       background: #1a1a1a;
@@ -66,7 +71,7 @@
       text-align: center;
       text-transform: uppercase;
       letter-spacing: 2px;
-      margin-bottom: 14px;
+      margin-bottom: 16px;
     }
     input[type="text"]:focus {
       outline: none;
@@ -78,70 +83,17 @@
       color: white;
       border: none;
       border-radius: 12px;
-      padding: 14px;
-      font-size: 17px;
+      padding: 16px;
+      font-size: 18px;
       cursor: pointer;
       transition: all 0.2s;
       font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
       min-height: 48px;
-      touch-action: manipulation;
-    }
-    .button:hover {
-      background: #5568d3;
     }
     .button:active {
       transform: scale(0.98);
-    }
-    #connected {
-      display: none;
-    }
-    .session-code {
-      font-size: clamp(26px, 7vw, 36px);
-      font-weight: bold;
-      color: #667eea;
-      font-family: 'Courier New', monospace;
-      margin: 12px 0;
-      word-break: break-all;
-    }
-    .status {
-      display: inline-block;
-      padding: 6px 16px;
-      border-radius: 16px;
-      font-size: 14px;
-      font-weight: 600;
-      background: #28a745;
-      margin-top: 12px;
-    }
-    .log {
-      background: #1a1a1a;
-      border-radius: 12px;
-      padding: clamp(16px, 4vw, 24px);
-      margin-top: clamp(16px, 4vw, 24px);
-      max-height: 280px;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    .log-title {
-      font-size: 12px;
-      color: #999;
-      text-transform: uppercase;
-      margin-bottom: 10px;
-      font-weight: 600;
-    }
-    .log-entry {
-      padding: 8px 10px;
-      margin-bottom: 6px;
-      border-radius: 6px;
-      background: #2a2a2a;
-      font-family: 'Courier New', monospace;
-      font-size: clamp(12px, 3vw, 13px);
-      word-wrap: break-word;
-    }
-    .log-entry.next {
-      border-left: 4px solid #28a745;
-    }
-    .log-entry.prev {
-      border-left: 4px solid #ffc107;
     }
     .error {
       color: #dc3545;
@@ -149,51 +101,189 @@
       text-align: center;
       font-size: 14px;
     }
+    #cue-display {
+      display: none;
+      height: 100vh;
+      height: 100dvh;
+      flex-direction: column;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .header {
+      padding: 16px max(16px, env(safe-area-inset-left)) 16px max(16px, env(safe-area-inset-right));
+      text-align: center;
+      background: #2a2a2a;
+      flex-shrink: 0;
+    }
+    .session-info {
+      font-size: 12px;
+      color: #999;
+    }
+    .session-code {
+      font-size: clamp(20px, 5vw, 24px);
+      font-weight: bold;
+      color: #667eea;
+      font-family: 'Courier New', monospace;
+      margin: 6px 0;
+    }
+    .status {
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-top: 4px;
+      background: #28a745;
+    }
+    .time-display {
+      margin: 10px 0 6px;
+    }
+    .clock {
+      font-size: clamp(20px, 5vw, 24px);
+      font-weight: 600;
+      font-family: 'Courier New', monospace;
+      color: #999;
+      margin-bottom: 4px;
+    }
+    .timer {
+      font-size: clamp(32px, 8vw, 42px);
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+      color: #667eea;
+    }
+    .timer.idle {
+      font-size: clamp(18px, 4.5vw, 22px);
+      color: #555;
+    }
+    .timer.warning { color: #ffc107; }
+    .timer.danger { color: #dc3545; }
+    .cue-indicators {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      min-height: 0;
+      overflow: hidden;
+      background: #0a0a0a;
+    }
+    .cue-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a0a;
+      border: 2px solid #1a1a1a;
+      min-height: 120px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .led-triangle {
+      position: relative;
+      width: min(40vw, 280px);
+      height: min(40vw, 280px);
+    }
+    .led-dot {
+      position: absolute;
+      width: min(4vw, 24px);
+      height: min(4vw, 24px);
+      border-radius: 50%;
+      transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .cue-indicator.prev .led-dot {
+      background: #330000;
+      box-shadow: 0 0 3px rgba(139, 0, 0, 0.3);
+    }
+    .cue-indicator.prev.active .led-dot {
+      background: #ff0000;
+      box-shadow: 
+        0 0 10px rgba(255, 0, 0, 0.8),
+        0 0 20px rgba(255, 0, 0, 0.6),
+        0 0 30px rgba(255, 0, 0, 0.4),
+        inset 0 0 10px rgba(255, 100, 100, 0.8);
+    }
+    .cue-indicator.next .led-dot {
+      background: #003300;
+      box-shadow: 0 0 3px rgba(0, 100, 0, 0.3);
+    }
+    .cue-indicator.next.active .led-dot {
+      background: #00ff00;
+      box-shadow: 
+        0 0 10px rgba(0, 255, 0, 0.8),
+        0 0 20px rgba(0, 255, 0, 0.6),
+        0 0 30px rgba(0, 255, 0, 0.4),
+        inset 0 0 10px rgba(100, 255, 100, 0.8);
+    }
+    .notes {
+      padding: 14px max(16px, env(safe-area-inset-left)) 14px max(16px, env(safe-area-inset-right));
+      background: #2a2a2a;
+      max-height: 160px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      border-top: 2px solid #1a1a1a;
+      flex-shrink: 0;
+    }
+    .notes-title {
+      font-size: 11px;
+      color: #999;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .notes-content {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #ccc;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
     @media (max-width: 400px) {
-      .container {
+      .join-form {
         padding: 20px;
       }
-      .info {
-        padding: 14px;
-      }
-      .log {
-        max-height: 200px;
+      .header {
+        padding: 12px max(12px, env(safe-area-inset-left)) 12px max(12px, env(safe-area-inset-right));
       }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🖥️ Show Client (Browser)</h1>
-    
-    <div id="join-form">
+  <div id="join-screen">
+    <h1>🖥️ Show Cue Display</h1>
+    <div class="join-form">
       <div class="info">
-        <p>This is a <strong>browser-based test client</strong>.</p>
-        <p>For production use with PowerPoint, Keynote, or other desktop apps, use the <strong>Node.js CLI client</strong>:</p>
-        <p><code style="color: #667eea;">npm run show-client &lt;CODE&gt;</code></p>
+        <strong>Visual cue display</strong> for presenters. Shows LED indicators when slides advance.
       </div>
-      
-      <input type="text" id="codeInput" placeholder="Enter Code" autocomplete="off">
+      <input type="text" id="codeInput" placeholder="Session Code" autocomplete="off">
       <button class="button" onclick="joinSession()">Join Session</button>
       <div class="error" id="error"></div>
     </div>
+  </div>
 
-    <div id="connected">
-      <div style="text-align: center;">
-        <div style="color: #999;">Connected to Session</div>
-        <div class="session-code" id="sessionCode"></div>
-        <span class="status">● Active</span>
+  <div id="cue-display">
+    <div class="header">
+      <div class="session-info">Session</div>
+      <div class="session-code" id="sessionCode"></div>
+      <div>
+        <span class="status" id="status">● Active</span>
       </div>
+      <div class="time-display">
+        <div class="clock" id="clock">--:--:--</div>
+        <div class="timer idle" id="timer">No timer set</div>
+      </div>
+    </div>
+    
+    <div class="cue-indicators">
+      <div class="cue-indicator prev" id="prevIndicator">
+        <div class="led-triangle" id="prevTriangle"></div>
+      </div>
+      <div class="cue-indicator next" id="nextIndicator">
+        <div class="led-triangle" id="nextTriangle"></div>
+      </div>
+    </div>
 
-      <div class="log">
-        <div class="log-title">Command Log</div>
-        <div id="logEntries"></div>
-      </div>
-
-      <div style="margin-top: 24px; padding: 16px; background: #1a1a1a; border-radius: 12px; text-align: center; color: #999; font-size: 14px;">
-        Focus this window and use arrow keys to test.<br>
-        In production, the CLI client injects keys into your focused presentation.
-      </div>
+    <div class="notes" id="notesSection" style="display: none;">
+      <div class="notes-title">Speaker Notes</div>
+      <div class="notes-content" id="notesContent"></div>
     </div>
   </div>
 
@@ -202,18 +292,71 @@
     const socket = io();
     let sessionCode = null;
     let showToken = null;
+    let timerInterval = null;
+    let timerEndTime = null;
+    let clockInterval = null;
 
-    socket.on('session-joined', ({ code, token }) => {
-      sessionCode = code;
-      showToken = token;
-      document.getElementById('sessionCode').textContent = code;
-      document.getElementById('join-form').style.display = 'none';
-      document.getElementById('connected').style.display = 'block';
-      addLog('Connected to session', 'info');
+    function createLEDTriangle(container, direction) {
+      const rows = direction === 'left' ? 7 : 7;
+      const dots = [];
+      
+      for (let row = 0; row < rows; row++) {
+        const dotsInRow = row + 1;
+        for (let col = 0; col < dotsInRow; col++) {
+          const dot = document.createElement('div');
+          dot.className = 'led-dot';
+          
+          if (direction === 'left') {
+            const rowOffset = (rows - row - 1) * 0.5;
+            dot.style.left = `${row * 14}%`;
+            dot.style.top = `${rowOffset * 14 + col * 14}%`;
+          } else {
+            const rowOffset = (rows - row - 1) * 0.5;
+            dot.style.right = `${row * 14}%`;
+            dot.style.top = `${rowOffset * 14 + col * 14}%`;
+          }
+          
+          container.appendChild(dot);
+          dots.push(dot);
+        }
+      }
+      
+      return dots;
+    }
+
+    createLEDTriangle(document.getElementById('prevTriangle'), 'left');
+    createLEDTriangle(document.getElementById('nextTriangle'), 'right');
+
+    socket.on('session-joined', (data) => {
+      sessionCode = data.code;
+      showToken = data.token;
+      
+      document.getElementById('sessionCode').textContent = data.code;
+      document.getElementById('join-screen').style.display = 'none';
+      document.getElementById('cue-display').style.display = 'flex';
+      
+      if (data.notes) {
+        updateNotes(data.notes);
+      }
+
+      if (data.timer && data.timerStartedAt) {
+        timerEndTime = data.timerStartedAt + (data.timer * 1000);
+        updateTimerDisplay();
+        timerInterval = setInterval(updateTimerDisplay, 100);
+      } else {
+        updateTimerDisplay();
+      }
+      
+      updateClock();
+      clockInterval = setInterval(updateClock, 1000);
     });
 
     socket.on('advance', ({ direction }) => {
-      addLog(`Command: ${direction.toUpperCase()}`, direction);
+      const indicator = direction === 'next' ? 
+        document.getElementById('nextIndicator') : 
+        document.getElementById('prevIndicator');
+      
+      indicator.classList.add('active');
       
       const event = new KeyboardEvent('keydown', {
         key: direction === 'next' ? 'ArrowRight' : 'ArrowLeft',
@@ -221,6 +364,21 @@
         bubbles: true
       });
       document.dispatchEvent(event);
+      
+      setTimeout(() => {
+        indicator.classList.remove('active');
+      }, 800);
+    });
+
+    socket.on('notes-changed', ({ notes }) => {
+      updateNotes(notes);
+    });
+
+    socket.on('timer-changed', ({ timer, timerStartedAt }) => {
+      timerEndTime = timerStartedAt + (timer * 1000);
+      updateTimerDisplay();
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimerDisplay, 100);
     });
 
     socket.on('error', ({ message }) => {
@@ -234,32 +392,69 @@
 
     function joinSession() {
       const code = document.getElementById('codeInput').value.trim().toUpperCase();
-      if (code) {
-        socket.emit('join-session', { code, role: 'show-client' });
+      
+      if (!code) {
+        document.getElementById('error').textContent = 'Please enter session code';
+        return;
+      }
+      
+      document.getElementById('error').textContent = '';
+      socket.emit('join-session', { code, role: 'show-client' });
+    }
+
+    function updateNotes(notes) {
+      const notesSection = document.getElementById('notesSection');
+      const notesContent = document.getElementById('notesContent');
+      
+      if (notes && notes.trim()) {
+        notesContent.textContent = notes;
+        notesSection.style.display = 'block';
+      } else {
+        notesSection.style.display = 'none';
       }
     }
 
-    function addLog(message, type) {
-      const logEntries = document.getElementById('logEntries');
-      const entry = document.createElement('div');
-      entry.className = `log-entry ${type}`;
-      entry.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
-      logEntries.insertBefore(entry, logEntries.firstChild);
+    function updateClock() {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('clock').textContent = `${hours}:${minutes}:${seconds}`;
+    }
+
+    function updateTimerDisplay() {
+      const display = document.getElementById('timer');
       
-      if (logEntries.children.length > 20) {
-        logEntries.removeChild(logEntries.lastChild);
+      if (!timerEndTime) {
+        display.textContent = 'No timer set';
+        display.className = 'timer idle';
+        return;
+      }
+      
+      const remaining = Math.max(0, timerEndTime - Date.now());
+      const totalSeconds = Math.floor(remaining / 1000);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      
+      display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      
+      display.className = 'timer';
+      if (remaining === 0) {
+        display.className = 'timer danger';
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+      } else if (remaining < 60000) {
+        display.className = 'timer danger';
+      } else if (remaining < 300000) {
+        display.className = 'timer warning';
       }
     }
 
     document.getElementById('codeInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
         joinSession();
-      }
-    });
-
-    document.addEventListener('keydown', (e) => {
-      if (sessionCode && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
-        console.log(`Simulated key press: ${e.key}`);
       }
     });
   </script>
