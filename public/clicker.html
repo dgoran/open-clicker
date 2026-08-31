@@ -222,6 +222,61 @@
       text-align: center;
       font-size: 14px;
     }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal.active {
+      display: flex;
+    }
+    .modal-content {
+      background: #2a2a2a;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+    .modal-content h2 {
+      margin-bottom: 16px;
+      font-size: 22px;
+    }
+    .modal-content input[type="text"] {
+      width: 100%;
+      padding: 14px;
+      font-size: 18px;
+      border: 2px solid #444;
+      border-radius: 12px;
+      background: #1a1a1a;
+      color: white;
+      text-align: center;
+      margin-bottom: 16px;
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    .modal-content input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .modal-content .button {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .modal-content .button.secondary {
+      background: #6c757d;
+    }
+    .modal-content .button.secondary:active {
+      background: #5a6268;
+    }
     @media (max-width: 400px) {
       .join-form {
         padding: 20px;
@@ -236,7 +291,7 @@
   <div id="join-screen">
     <h1>🎯 Clicker</h1>
     <div class="join-form">
-      <input type="text" id="displayNameInput" placeholder="Your Name" autocomplete="off" style="text-transform: none; letter-spacing: normal;">
+      <input type="text" id="displayNameInput" placeholder="Your Name (optional)" autocomplete="off" style="text-transform: none; letter-spacing: normal;">
       <input type="text" id="codeInput" placeholder="Session Code" autocomplete="off">
       <button class="button" onclick="joinSession()">Join Session</button>
       <div class="error" id="error"></div>
@@ -268,6 +323,16 @@
     <div class="notes" id="notesSection" style="display: none;">
       <div class="notes-title">Speaker Notes</div>
       <div class="notes-content" id="notesContent"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="nameModal">
+    <div class="modal-content">
+      <h2>Enter Your Name</h2>
+      <p style="color: #ccc; margin-bottom: 16px; font-size: 14px;">The presenter would like you to provide your name</p>
+      <input type="text" id="modalNameInput" placeholder="Your Name" autocomplete="off">
+      <button class="button" onclick="submitNameFromModal()">Submit</button>
+      <button class="button secondary" onclick="closeNameModal()">Maybe Later</button>
     </div>
   </div>
 
@@ -336,6 +401,10 @@
       requestWakeLock();
     });
 
+    socket.on('name-prompt', () => {
+      document.getElementById('nameModal').classList.add('active');
+    });
+
     socket.on('lock-changed', ({ locked }) => {
       updateLockStatus(locked);
     });
@@ -369,11 +438,6 @@
       const displayName = document.getElementById('displayNameInput').value.trim();
       const code = document.getElementById('codeInput').value.trim().toUpperCase();
       
-      if (!displayName) {
-        document.getElementById('error').textContent = 'Please enter your name';
-        return;
-      }
-      
       if (!code) {
         document.getElementById('error').textContent = 'Please enter session code';
         return;
@@ -381,6 +445,22 @@
       
       document.getElementById('error').textContent = '';
       socket.emit('join-session', { code, role: 'clicker', displayName });
+    }
+
+    function closeNameModal() {
+      document.getElementById('nameModal').classList.remove('active');
+    }
+
+    function submitNameFromModal() {
+      const name = document.getElementById('modalNameInput').value.trim();
+      
+      if (!name) {
+        alert('Please enter a name');
+        return;
+      }
+      
+      closeNameModal();
+      alert(`Name submitted: ${name}\n\nNote: In a full implementation, this would update your display name on the server.`);
     }
 
     function sendCommand(direction) {
@@ -484,6 +564,12 @@
     document.getElementById('codeInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
         joinSession();
+      }
+    });
+
+    document.getElementById('modalNameInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        submitNameFromModal();
       }
     });
   </script>
