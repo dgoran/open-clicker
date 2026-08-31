@@ -372,6 +372,47 @@
       </div>
 
       <div class="card">
+        <h2>Feature Settings</h2>
+        <p style="color: #666; margin-bottom: 16px;">Optional features (all default OFF)</p>
+        
+        <label class="checkbox-label">
+          <input type="checkbox" id="screenshotCheckbox" onchange="toggleFeature('screenshotEnabled')">
+          <span>📸 Live slide screenshot preview on clicker</span>
+        </label>
+        
+        <label class="checkbox-label">
+          <input type="checkbox" id="messagesCheckbox" onchange="toggleFeature('messagesEnabled')">
+          <span>💬 Custom messages to presenters</span>
+        </label>
+        
+        <label class="checkbox-label">
+          <input type="checkbox" id="laserPointerCheckbox" onchange="toggleFeature('laserPointerEnabled')">
+          <span>🔴 Laser pointer on show screen</span>
+        </label>
+        
+        <label class="checkbox-label">
+          <input type="checkbox" id="voiceControlCheckbox" onchange="toggleFeature('voiceControlEnabled')">
+          <span>🎤 Voice control (experimental)</span>
+        </label>
+        
+        <label class="checkbox-label">
+          <input type="checkbox" id="cueBeepsCheckbox" onchange="toggleFeature('cueBeepsEnabled')">
+          <span>🔔 Cue beeps on show display</span>
+        </label>
+      </div>
+
+      <div class="card" id="messageCard" style="display: none;">
+        <h2>Send Message to Presenters</h2>
+        <textarea id="messageText" placeholder="Type your message here..." style="margin-bottom: 12px;"></textarea>
+        <div style="margin-bottom: 12px;">
+          <select id="messageTarget" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px;">
+            <option value="all">All Presenters</option>
+          </select>
+        </div>
+        <button class="button" onclick="sendMessage()">Send Message</button>
+      </div>
+
+      <div class="card">
         <h2>Global Clicker Lock</h2>
         <p style="color: #666; margin-bottom: 16px;">
           Status: <span class="status unlocked" id="lockStatus">Unlocked</span>
@@ -412,6 +453,13 @@
     let timerInterval = null;
     let timerEndTime = null;
     let requireName = true;
+    let features = {
+      screenshotEnabled: false,
+      messagesEnabled: false,
+      laserPointerEnabled: false,
+      voiceControlEnabled: false,
+      cueBeepsEnabled: false
+    };
 
     async function checkAuth() {
       try {
@@ -538,12 +586,14 @@
       }
     }
 
-    socket.on('session-created', ({ code, token, requireName: reqName }) => {
+    socket.on('session-created', ({ code, token, requireName: reqName, features: sessionFeatures }) => {
       sessionCode = code;
       producerToken = token;
       requireName = reqName !== undefined ? reqName : true;
+      features = sessionFeatures || features;
       document.getElementById('sessionCode').textContent = code;
       document.getElementById('requireNameCheckbox').checked = requireName;
+      updateFeatureUI();
       showProducer();
     });
 
@@ -558,6 +608,45 @@
     socket.on('require-name-updated', ({ requireName: reqName }) => {
       requireName = reqName;
     });
+
+    socket.on('features-changed', ({ features: newFeatures }) => {
+      features = { ...features, ...newFeatures };
+      updateFeatureUI();
+    });
+
+    function updateFeatureUI() {
+      document.getElementById('screenshotCheckbox').checked = features.screenshotEnabled;
+      document.getElementById('messagesCheckbox').checked = features.messagesEnabled;
+      document.getElementById('laserPointerCheckbox').checked = features.laserPointerEnabled;
+      document.getElementById('voiceControlCheckbox').checked = features.voiceControlEnabled;
+      document.getElementById('cueBeepsCheckbox').checked = features.cueBeepsEnabled;
+      
+      document.getElementById('messageCard').style.display = features.messagesEnabled ? 'block' : 'none';
+    }
+
+    function toggleFeature(featureName) {
+      features[featureName] = !features[featureName];
+      socket.emit('set-features', { code: sessionCode, token: producerToken, features });
+    }
+
+    function sendMessage() {
+      const message = document.getElementById('messageText').value.trim();
+      const target = document.getElementById('messageTarget').value;
+      
+      if (!message) {
+        alert('Please enter a message');
+        return;
+      }
+      
+      socket.emit('send-message', { 
+        code: sessionCode, 
+        token: producerToken, 
+        targetId: target,
+        message 
+      });
+      
+      document.getElementById('messageText').value = '';
+    }
 
     function createSession() {
       if (!userId) {
@@ -660,9 +749,11 @@
 
     function updatePresentersList(presenters) {
       const container = document.getElementById('presentersList');
+      const messageTarget = document.getElementById('messageTarget');
       
       if (!presenters || presenters.length === 0) {
         container.innerHTML = '<p style="color: #999; font-style: italic;">No presenters connected yet</p>';
+        messageTarget.innerHTML = '<option value="all">All Presenters</option>';
         return;
       }
       
@@ -685,6 +776,9 @@
           </div>
         </div>
       `).join('');
+      
+      messageTarget.innerHTML = '<option value="all">All Presenters</option>' +
+        presenters.map(p => `<option value="${p.id}">${escapeHtml(p.displayName)}</option>`).join('');
     }
 
     function togglePresenterAccess(presenterId, enabled) {

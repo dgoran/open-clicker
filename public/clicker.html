@@ -277,6 +277,84 @@
     .modal-content .button.secondary:active {
       background: #5a6268;
     }
+    .screenshot-panel {
+      background: #2a2a2a;
+      border-top: 2px solid #1a1a1a;
+      padding: 14px max(16px, env(safe-area-inset-left)) 14px max(16px, env(safe-area-inset-right));
+      max-height: 200px;
+      overflow: hidden;
+      flex-shrink: 0;
+      display: none;
+    }
+    .screenshot-title {
+      font-size: 11px;
+      color: #999;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .screenshot-container {
+      width: 100%;
+      height: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .screenshot-container img {
+      max-width: 100%;
+      max-height: 150px;
+      border-radius: 8px;
+      border: 1px solid #444;
+    }
+    .feature-buttons {
+      padding: 12px max(16px, env(safe-area-inset-left)) 12px max(16px, env(safe-area-inset-right));
+      background: #2a2a2a;
+      border-top: 2px solid #1a1a1a;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .feature-button {
+      flex: 1;
+      min-width: 100px;
+      padding: 10px 16px;
+      font-size: 14px;
+      border-radius: 8px;
+      border: 2px solid #444;
+      background: #1a1a1a;
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    .feature-button:active {
+      transform: scale(0.98);
+    }
+    .feature-button.active {
+      background: #667eea;
+      border-color: #667eea;
+    }
+    .message-modal .modal-content {
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .message-text {
+      background: #1a1a1a;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    .voice-status {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+    .voice-status.listening {
+      color: #28a745;
+    }
     @media (max-width: 400px) {
       .join-form {
         padding: 20px;
@@ -313,6 +391,19 @@
       </div>
     </div>
     
+    <div class="feature-buttons" id="featureButtons" style="display: none;">
+      <button class="feature-button" id="screenshotBtn" onclick="toggleScreenshot()">📸 Screenshot</button>
+      <button class="feature-button" id="laserBtn" onclick="toggleLaser()">🔴 Laser</button>
+      <button class="feature-button" id="voiceBtn" onclick="toggleVoice()">🎤 Voice</button>
+    </div>
+    
+    <div class="screenshot-panel" id="screenshotPanel">
+      <div class="screenshot-title">Live Slide Preview</div>
+      <div class="screenshot-container">
+        <img id="screenshotImg" src="" alt="Slide preview">
+      </div>
+    </div>
+    
     <div class="controls">
       <button class="control-button prev-button" id="prevBtn" ontouchstart="sendCommand('prev')" onclick="sendCommand('prev')">
         ← PREV
@@ -338,6 +429,14 @@
     </div>
   </div>
 
+  <div class="modal message-modal" id="messageModal">
+    <div class="modal-content">
+      <h2>Message from Producer</h2>
+      <div class="message-text" id="messageText"></div>
+      <button class="button" onclick="closeMessageModal()">OK</button>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
@@ -349,6 +448,11 @@
     let timerEndTime = null;
     let clockInterval = null;
     let requireName = false;
+    let features = {};
+    let screenshotVisible = false;
+    let laserActive = false;
+    let voiceActive = false;
+    let recognition = null;
 
     async function requestWakeLock() {
       if ('wakeLock' in navigator) {
@@ -375,6 +479,7 @@
       sessionCode = data.code;
       clickerToken = data.token;
       clickAccessEnabled = data.clickAccessEnabled !== undefined ? data.clickAccessEnabled : true;
+      features = data.features || {};
       
       document.getElementById('sessionCode').textContent = data.code;
       document.getElementById('join-screen').style.display = 'none';
@@ -385,6 +490,7 @@
       }
       
       updateClickAccessStatus();
+      updateFeatureButtons();
       
       if (data.notes) {
         updateNotes(data.notes);
@@ -396,6 +502,10 @@
         timerInterval = setInterval(updateTimerDisplay, 100);
       } else {
         updateTimerDisplay();
+      }
+      
+      if (data.screenshot) {
+        updateScreenshot(data.screenshot);
       }
       
       updateClock();
@@ -431,6 +541,19 @@
       updateTimerDisplay();
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(updateTimerDisplay, 100);
+    });
+
+    socket.on('features-changed', ({ features: newFeatures }) => {
+      features = { ...features, ...newFeatures };
+      updateFeatureButtons();
+    });
+
+    socket.on('screenshot-updated', ({ screenshot }) => {
+      updateScreenshot(screenshot);
+    });
+
+    socket.on('message-received', ({ message, timestamp, from }) => {
+      showMessage(message);
     });
 
     socket.on('error', ({ message }) => {
@@ -611,6 +734,140 @@
       } else if (remaining < 300000) {
         display.className = 'timer warning';
       }
+    }
+
+    function updateFeatureButtons() {
+      const featureButtons = document.getElementById('featureButtons');
+      const screenshotBtn = document.getElementById('screenshotBtn');
+      const laserBtn = document.getElementById('laserBtn');
+      const voiceBtn = document.getElementById('voiceBtn');
+      
+      const hasFeatures = features.screenshotEnabled || features.laserPointerEnabled || features.voiceControlEnabled;
+      featureButtons.style.display = hasFeatures ? 'flex' : 'none';
+      
+      screenshotBtn.style.display = features.screenshotEnabled ? 'block' : 'none';
+      laserBtn.style.display = features.laserPointerEnabled ? 'block' : 'none';
+      voiceBtn.style.display = features.voiceControlEnabled ? 'block' : 'none';
+    }
+
+    function updateScreenshot(screenshot) {
+      if (screenshot && screenshotVisible) {
+        document.getElementById('screenshotImg').src = screenshot;
+      }
+    }
+
+    function toggleScreenshot() {
+      screenshotVisible = !screenshotVisible;
+      const panel = document.getElementById('screenshotPanel');
+      const btn = document.getElementById('screenshotBtn');
+      
+      panel.style.display = screenshotVisible ? 'block' : 'none';
+      if (screenshotVisible) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    }
+
+    function toggleLaser() {
+      laserActive = !laserActive;
+      const btn = document.getElementById('laserBtn');
+      
+      if (laserActive) {
+        btn.classList.add('active');
+        document.addEventListener('mousemove', handleLaserMove);
+        document.addEventListener('touchmove', handleLaserMove);
+      } else {
+        btn.classList.remove('active');
+        document.removeEventListener('mousemove', handleLaserMove);
+        document.removeEventListener('touchmove', handleLaserMove);
+        socket.emit('laser-pointer', { code: sessionCode, token: clickerToken, x: 0, y: 0, active: false });
+      }
+    }
+
+    function handleLaserMove(e) {
+      if (!laserActive) return;
+      
+      let x, y;
+      if (e.type.startsWith('touch')) {
+        const touch = e.touches[0];
+        x = touch.clientX / window.innerWidth;
+        y = touch.clientY / window.innerHeight;
+      } else {
+        x = e.clientX / window.innerWidth;
+        y = e.clientY / window.innerHeight;
+      }
+      
+      socket.emit('laser-pointer', { code: sessionCode, token: clickerToken, x, y, active: true });
+    }
+
+    function toggleVoice() {
+      voiceActive = !voiceActive;
+      const btn = document.getElementById('voiceBtn');
+      
+      if (voiceActive) {
+        btn.classList.add('active');
+        startVoiceRecognition();
+      } else {
+        btn.classList.remove('active');
+        stopVoiceRecognition();
+      }
+    }
+
+    function startVoiceRecognition() {
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert('Voice recognition not supported in this browser');
+        voiceActive = false;
+        document.getElementById('voiceBtn').classList.remove('active');
+        return;
+      }
+      
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      
+      recognition.onresult = (event) => {
+        const last = event.results.length - 1;
+        const text = event.results[last][0].transcript.toLowerCase().trim();
+        
+        console.log('Voice recognized:', text);
+        
+        if (text.includes('next') && text.includes('slide')) {
+          sendCommand('next');
+        } else if (text.includes('last') && text.includes('slide') || text.includes('previous') && text.includes('slide')) {
+          sendCommand('prev');
+        }
+      };
+      
+      recognition.onerror = (event) => {
+        console.error('Voice recognition error:', event.error);
+      };
+      
+      recognition.onend = () => {
+        if (voiceActive) {
+          recognition.start();
+        }
+      };
+      
+      recognition.start();
+    }
+
+    function stopVoiceRecognition() {
+      if (recognition) {
+        recognition.stop();
+        recognition = null;
+      }
+    }
+
+    function showMessage(message) {
+      document.getElementById('messageText').textContent = message;
+      document.getElementById('messageModal').classList.add('active');
+    }
+
+    function closeMessageModal() {
+      document.getElementById('messageModal').classList.remove('active');
     }
 
     document.getElementById('displayNameInput').addEventListener('keypress', (e) => {
