@@ -85,6 +85,12 @@
     .button.success:hover {
       background: #218838;
     }
+    .button.secondary {
+      background: #6c757d;
+    }
+    .button.secondary:hover {
+      background: #5a6268;
+    }
     .controls {
       display: flex;
       flex-wrap: wrap;
@@ -106,6 +112,18 @@
       resize: vertical;
     }
     textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    input[type="email"], input[type="password"], input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+    input[type="email"]:focus, input[type="password"]:focus, input[type="text"]:focus {
       outline: none;
       border-color: #667eea;
     }
@@ -146,6 +164,19 @@
       outline: none;
       border-color: #667eea;
     }
+    input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      cursor: pointer;
+      user-select: none;
+    }
     .status {
       display: inline-block;
       padding: 6px 14px;
@@ -160,6 +191,19 @@
     .status.unlocked {
       background: #28a745;
       color: white;
+    }
+    .status.anonymous {
+      background: #ffc107;
+      color: #333;
+      font-size: 12px;
+      padding: 4px 10px;
+      margin-left: 8px;
+    }
+    #auth-screen, #setup, #producer {
+      display: none;
+    }
+    #auth-screen.active, #setup.active, #producer.active {
+      display: block;
     }
     #setup {
       text-align: center;
@@ -181,9 +225,6 @@
       font-size: 17px;
       padding: 14px 28px;
       margin-top: 8px;
-    }
-    #producer {
-      display: none;
     }
     .presenter-item {
       display: flex;
@@ -219,6 +260,31 @@
       font-size: 14px;
       min-height: 36px;
     }
+    .error {
+      color: #dc3545;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+    .success {
+      color: #28a745;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+    .auth-toggle {
+      text-align: center;
+      margin-top: 16px;
+      color: #667eea;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .auth-toggle:hover {
+      text-decoration: underline;
+    }
+    .user-info {
+      color: #666;
+      font-size: 14px;
+      margin-top: 8px;
+    }
     @media (max-width: 480px) {
       body {
         padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
@@ -246,10 +312,37 @@
 </head>
 <body>
   <div class="container">
+    <div id="auth-screen">
+      <header>
+        <h1>Producer Login</h1>
+        <p style="color: #666;">Sign in to create and manage presentation sessions</p>
+      </header>
+      
+      <div class="card" id="login-form">
+        <h2>Login</h2>
+        <input type="email" id="loginEmail" placeholder="Email" autocomplete="email">
+        <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+        <button class="button" onclick="login()" style="width: 100%;">Login</button>
+        <div class="error" id="loginError"></div>
+        <div class="auth-toggle" onclick="showSignup()">Don't have an account? Sign up</div>
+      </div>
+      
+      <div class="card" id="signup-form" style="display: none;">
+        <h2>Sign Up</h2>
+        <input type="email" id="signupEmail" placeholder="Email" autocomplete="email">
+        <input type="password" id="signupPassword" placeholder="Password (min 6 characters)" autocomplete="new-password">
+        <button class="button" onclick="signup()" style="width: 100%;">Sign Up</button>
+        <div class="error" id="signupError"></div>
+        <div class="auth-toggle" onclick="showLogin()">Already have an account? Login</div>
+      </div>
+    </div>
+
     <div id="setup">
       <h1>Producer Control</h1>
+      <p class="user-info" id="userInfo"></p>
       <p style="color: #666; margin: 16px 0 32px;">Create a new presentation session</p>
       <button class="button" onclick="createSession()">Create Session</button>
+      <button class="button secondary" onclick="logout()" style="margin-top: 12px;">Logout</button>
     </div>
 
     <div id="producer">
@@ -257,6 +350,7 @@
         <h1>Producer Control</h1>
         <div class="session-code" id="sessionCode"></div>
         <p style="color: #666;">Share this code with clickers and the show client</p>
+        <button class="button secondary" onclick="endSessionAndLogout()" style="margin-top: 12px;">End Session & Logout</button>
       </header>
 
       <div class="card">
@@ -265,6 +359,16 @@
         <div id="presentersList">
           <p style="color: #999; font-style: italic;">No presenters connected yet</p>
         </div>
+      </div>
+
+      <div class="card">
+        <h2>Presenter Settings</h2>
+        <label class="checkbox-label">
+          <input type="checkbox" id="requireNameCheckbox" checked onchange="setRequireName()">
+          <span>Require name for clickers (uncheck to allow anonymous presenters)</span>
+        </label>
+        <button class="button secondary" onclick="promptUnnamedPresenters()">Prompt Unnamed Presenters for Name</button>
+        <p style="color: #999; font-size: 13px; margin-top: 8px;">Send a popup to all anonymous presenters asking them to enter their name</p>
       </div>
 
       <div class="card">
@@ -303,15 +407,144 @@
     const socket = io();
     let sessionCode = null;
     let producerToken = null;
+    let userId = null;
+    let userEmail = null;
     let timerInterval = null;
     let timerEndTime = null;
+    let requireName = true;
 
-    socket.on('session-created', ({ code, token }) => {
+    async function checkAuth() {
+      try {
+        const response = await fetch('/api/me');
+        const data = await response.json();
+        
+        if (data.authenticated) {
+          userId = data.userId;
+          userEmail = data.email;
+          showSetup();
+        } else {
+          showAuth();
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        showAuth();
+      }
+    }
+
+    function showAuth() {
+      document.getElementById('auth-screen').classList.add('active');
+      document.getElementById('setup').classList.remove('active');
+      document.getElementById('producer').classList.remove('active');
+    }
+
+    function showSetup() {
+      document.getElementById('auth-screen').classList.remove('active');
+      document.getElementById('setup').classList.add('active');
+      document.getElementById('producer').classList.remove('active');
+      document.getElementById('userInfo').textContent = `Logged in as ${userEmail}`;
+    }
+
+    function showProducer() {
+      document.getElementById('auth-screen').classList.remove('active');
+      document.getElementById('setup').classList.remove('active');
+      document.getElementById('producer').classList.add('active');
+    }
+
+    function showLogin() {
+      document.getElementById('login-form').style.display = 'block';
+      document.getElementById('signup-form').style.display = 'none';
+      document.getElementById('loginError').textContent = '';
+      document.getElementById('signupError').textContent = '';
+    }
+
+    function showSignup() {
+      document.getElementById('login-form').style.display = 'none';
+      document.getElementById('signup-form').style.display = 'block';
+      document.getElementById('loginError').textContent = '';
+      document.getElementById('signupError').textContent = '';
+    }
+
+    async function login() {
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      
+      if (!email || !password) {
+        document.getElementById('loginError').textContent = 'Please enter email and password';
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          await checkAuth();
+        } else {
+          document.getElementById('loginError').textContent = data.error || 'Login failed';
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        document.getElementById('loginError').textContent = 'Network error';
+      }
+    }
+
+    async function signup() {
+      const email = document.getElementById('signupEmail').value.trim();
+      const password = document.getElementById('signupPassword').value;
+      
+      if (!email || !password) {
+        document.getElementById('signupError').textContent = 'Please enter email and password';
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          await checkAuth();
+        } else {
+          document.getElementById('signupError').textContent = data.error || 'Signup failed';
+        }
+      } catch (error) {
+        console.error('Signup error:', error);
+        document.getElementById('signupError').textContent = 'Network error';
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+        location.reload();
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    }
+
+    async function endSessionAndLogout() {
+      if (confirm('Are you sure you want to end this session and logout?')) {
+        socket.disconnect();
+        await logout();
+      }
+    }
+
+    socket.on('session-created', ({ code, token, requireName: reqName }) => {
       sessionCode = code;
       producerToken = token;
+      requireName = reqName !== undefined ? reqName : true;
       document.getElementById('sessionCode').textContent = code;
-      document.getElementById('setup').style.display = 'none';
-      document.getElementById('producer').style.display = 'block';
+      document.getElementById('requireNameCheckbox').checked = requireName;
+      showProducer();
     });
 
     socket.on('lock-changed', ({ locked }) => {
@@ -322,7 +555,15 @@
       updatePresentersList(presenters);
     });
 
+    socket.on('require-name-updated', ({ requireName: reqName }) => {
+      requireName = reqName;
+    });
+
     function createSession() {
+      if (!userId) {
+        alert('Please log in first');
+        return;
+      }
       socket.emit('create-session');
     }
 
@@ -347,6 +588,15 @@
         lockBtn.disabled = false;
         unlockBtn.disabled = true;
       }
+    }
+
+    function setRequireName() {
+      requireName = document.getElementById('requireNameCheckbox').checked;
+      socket.emit('set-require-name', { code: sessionCode, token: producerToken, requireName });
+    }
+
+    function promptUnnamedPresenters() {
+      socket.emit('prompt-name', { code: sessionCode, token: producerToken });
     }
 
     function startTimer() {
@@ -419,7 +669,10 @@
       container.innerHTML = presenters.map(presenter => `
         <div class="presenter-item">
           <div class="presenter-info">
-            <div class="presenter-name">${escapeHtml(presenter.displayName)}</div>
+            <div class="presenter-name">
+              ${escapeHtml(presenter.displayName)}
+              ${presenter.isAnonymous ? '<span class="status anonymous">Anonymous</span>' : ''}
+            </div>
             <div class="presenter-status" style="color: ${presenter.clickAccessEnabled ? '#28a745' : '#dc3545'}">
               ${presenter.clickAccessEnabled ? 'Click Access: Enabled' : 'Click Access: Suspended'}
             </div>
@@ -448,6 +701,24 @@
       div.textContent = text;
       return div.innerHTML;
     }
+
+    document.getElementById('loginEmail').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') login();
+    });
+
+    document.getElementById('loginPassword').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') login();
+    });
+
+    document.getElementById('signupEmail').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') signup();
+    });
+
+    document.getElementById('signupPassword').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') signup();
+    });
+
+    checkAuth();
   </script>
 </body>
 </html>

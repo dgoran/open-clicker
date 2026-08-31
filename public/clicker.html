@@ -222,6 +222,61 @@
       text-align: center;
       font-size: 14px;
     }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal.active {
+      display: flex;
+    }
+    .modal-content {
+      background: #2a2a2a;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+    .modal-content h2 {
+      margin-bottom: 16px;
+      font-size: 22px;
+    }
+    .modal-content input[type="text"] {
+      width: 100%;
+      padding: 14px;
+      font-size: 18px;
+      border: 2px solid #444;
+      border-radius: 12px;
+      background: #1a1a1a;
+      color: white;
+      text-align: center;
+      margin-bottom: 16px;
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    .modal-content input[type="text"]:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .modal-content .button {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .modal-content .button.secondary {
+      background: #6c757d;
+    }
+    .modal-content .button.secondary:active {
+      background: #5a6268;
+    }
     @media (max-width: 400px) {
       .join-form {
         padding: 20px;
@@ -236,9 +291,11 @@
   <div id="join-screen">
     <h1>🎯 Clicker</h1>
     <div class="join-form">
-      <input type="text" id="displayNameInput" placeholder="Your Name" autocomplete="off" style="text-transform: none; letter-spacing: normal;">
       <input type="text" id="codeInput" placeholder="Session Code" autocomplete="off">
-      <button class="button" onclick="joinSession()">Join Session</button>
+      <div id="nameFieldContainer" style="display: none;">
+        <input type="text" id="displayNameInput" placeholder="Your Name" autocomplete="off" style="text-transform: none; letter-spacing: normal;">
+      </div>
+      <button class="button" onclick="checkSessionAndJoin()">Join Session</button>
       <div class="error" id="error"></div>
     </div>
   </div>
@@ -271,6 +328,16 @@
     </div>
   </div>
 
+  <div class="modal" id="nameModal">
+    <div class="modal-content">
+      <h2>Enter Your Name</h2>
+      <p style="color: #ccc; margin-bottom: 16px; font-size: 14px;">The presenter would like you to provide your name</p>
+      <input type="text" id="modalNameInput" placeholder="Your Name" autocomplete="off">
+      <button class="button" onclick="submitNameFromModal()">Submit</button>
+      <button class="button secondary" onclick="closeNameModal()">Maybe Later</button>
+    </div>
+  </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
@@ -281,6 +348,7 @@
     let timerInterval = null;
     let timerEndTime = null;
     let clockInterval = null;
+    let requireName = false;
 
     async function requestWakeLock() {
       if ('wakeLock' in navigator) {
@@ -336,6 +404,15 @@
       requestWakeLock();
     });
 
+    socket.on('name-prompt', () => {
+      document.getElementById('nameModal').classList.add('active');
+    });
+
+    socket.on('display-name-updated', ({ displayName }) => {
+      console.log('Display name updated to:', displayName);
+      closeNameModal();
+    });
+
     socket.on('lock-changed', ({ locked }) => {
       updateLockStatus(locked);
     });
@@ -365,22 +442,83 @@
       location.reload();
     });
 
-    function joinSession() {
-      const displayName = document.getElementById('displayNameInput').value.trim();
+    async function checkSessionAndJoin() {
       const code = document.getElementById('codeInput').value.trim().toUpperCase();
-      
-      if (!displayName) {
-        document.getElementById('error').textContent = 'Please enter your name';
-        return;
-      }
       
       if (!code) {
         document.getElementById('error').textContent = 'Please enter session code';
         return;
       }
       
+      try {
+        const response = await fetch(`/api/session/${code}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+          document.getElementById('error').textContent = data.error || 'Session not found';
+          return;
+        }
+        
+        requireName = data.requireName;
+        
+        if (requireName) {
+          const nameFieldContainer = document.getElementById('nameFieldContainer');
+          if (nameFieldContainer.style.display === 'block') {
+            joinSession(code);
+          } else {
+            nameFieldContainer.style.display = 'block';
+            document.getElementById('error').textContent = '';
+          }
+        } else {
+          joinSession(code);
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+        document.getElementById('error').textContent = 'Network error';
+      }
+    }
+
+    function joinSession(code) {
+      if (!code) {
+        code = document.getElementById('codeInput').value.trim().toUpperCase();
+      }
+      
+      let displayName = '';
+      const nameField = document.getElementById('displayNameInput');
+      
+      if (requireName) {
+        displayName = nameField.value.trim();
+        if (!displayName) {
+          document.getElementById('error').textContent = 'Please enter your name';
+          return;
+        }
+      } else {
+        displayName = nameField.value.trim();
+      }
+      
       document.getElementById('error').textContent = '';
       socket.emit('join-session', { code, role: 'clicker', displayName });
+    }
+
+    function closeNameModal() {
+      document.getElementById('nameModal').classList.remove('active');
+    }
+
+    function submitNameFromModal() {
+      const name = document.getElementById('modalNameInput').value.trim();
+      
+      if (!name) {
+        alert('Please enter a name');
+        return;
+      }
+      
+      if (sessionCode && clickerToken) {
+        socket.emit('set-display-name', { 
+          code: sessionCode, 
+          token: clickerToken, 
+          displayName: name 
+        });
+      }
     }
 
     function sendCommand(direction) {
@@ -477,13 +615,22 @@
 
     document.getElementById('displayNameInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
-        joinSession();
+        const code = document.getElementById('codeInput').value.trim().toUpperCase();
+        if (code) {
+          joinSession(code);
+        }
       }
     });
 
     document.getElementById('codeInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
-        joinSession();
+        checkSessionAndJoin();
+      }
+    });
+
+    document.getElementById('modalNameInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        submitNameFromModal();
       }
     });
   </script>
