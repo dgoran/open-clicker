@@ -2,112 +2,360 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#667eea">
-  <title>Open Clicker</title>
+  <title>Open Clicker - Control Your Slideshow from Anywhere</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #333;
+      line-height: 1.6;
+    }
+    .nav {
+      background: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-logo {
+      font-size: 22px;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .nav-links {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    .nav-link {
+      color: #666;
+      text-decoration: none;
+      font-size: 15px;
+      transition: color 0.2s;
+    }
+    .nav-link:hover {
+      color: #667eea;
+    }
+    .btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #5568d3;
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: white;
+      color: #667eea;
+      border: 2px solid #667eea;
+    }
+    .btn-secondary:hover {
+      background: #f8f9ff;
+    }
+    .hero {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
+      color: white;
+      padding: 80px 20px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(32px, 6vw, 52px);
+      margin-bottom: 20px;
+      font-weight: 700;
+    }
+    .hero p {
+      font-size: clamp(18px, 4vw, 22px);
+      margin-bottom: 40px;
+      opacity: 0.95;
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .section {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 80px 20px;
+    }
+    .section-title {
+      font-size: clamp(28px, 5vw, 38px);
+      text-align: center;
+      margin-bottom: 20px;
+      font-weight: 700;
+    }
+    .section-subtitle {
+      text-align: center;
+      color: #666;
+      font-size: 18px;
+      margin-bottom: 60px;
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 30px;
+      margin-top: 40px;
+    }
+    .feature-card {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 30px;
+      transition: all 0.3s;
+    }
+    .feature-card:hover {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      transform: translateY(-4px);
+    }
+    .feature-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+    .feature-card h3 {
+      font-size: 20px;
+      margin-bottom: 12px;
+      color: #333;
+    }
+    .feature-card p {
+      color: #666;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    .how-it-works {
+      background: #f8f9fa;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 40px;
+      margin-top: 50px;
+    }
+    .step {
+      text-align: center;
+    }
+    .step-number {
+      width: 60px;
+      height: 60px;
+      background: #667eea;
+      color: white;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0 auto 20px;
     }
-    .container {
-      background: white;
-      border-radius: 16px;
-      padding: clamp(24px, 6vw, 48px);
-      max-width: 500px;
-      width: 100%;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    .step h3 {
+      font-size: 20px;
+      margin-bottom: 12px;
     }
-    h1 {
-      color: #333;
-      margin-bottom: 10px;
-      font-size: clamp(24px, 6vw, 32px);
-    }
-    .subtitle {
+    .step p {
       color: #666;
-      margin-bottom: clamp(24px, 5vw, 36px);
-      font-size: clamp(14px, 3.5vw, 16px);
+      font-size: 15px;
     }
-    .card {
-      background: #f8f9fa;
-      border-radius: 12px;
-      padding: clamp(18px, 4.5vw, 24px);
-      margin-bottom: 14px;
-      border: 2px solid transparent;
-      transition: all 0.2s;
-      cursor: pointer;
-      touch-action: manipulation;
+    .cta-section {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 80px 20px;
+      text-align: center;
     }
-    .card:hover {
-      border-color: #667eea;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    .cta-section h2 {
+      font-size: clamp(32px, 5vw, 42px);
+      margin-bottom: 20px;
     }
-    .card:active {
-      transform: scale(0.98);
-    }
-    .card h2 {
-      color: #333;
-      margin-bottom: 8px;
-      font-size: clamp(17px, 4.2vw, 20px);
-    }
-    .card p {
-      color: #666;
-      font-size: clamp(13px, 3.2vw, 14px);
-      line-height: 1.5;
-    }
-    a {
-      text-decoration: none;
-      color: inherit;
+    .cta-section p {
+      font-size: 18px;
+      margin-bottom: 30px;
+      opacity: 0.95;
     }
     .footer {
-      margin-top: clamp(20px, 5vw, 32px);
-      text-align: center;
+      background: #2a2a2a;
       color: #999;
-      font-size: clamp(12px, 3vw, 14px);
+      padding: 40px 20px;
+      text-align: center;
     }
-    @media (max-width: 400px) {
-      .card {
-        margin-bottom: 12px;
+    .footer-content {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .footer-link {
+      color: #999;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .footer-link:hover {
+      color: white;
+    }
+    @media (max-width: 768px) {
+      .nav-links {
+        gap: 12px;
+      }
+      .hero {
+        padding: 60px 20px;
+      }
+      .section {
+        padding: 60px 20px;
       }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Open Clicker</h1>
-    <p class="subtitle">Remote presenter control system</p>
-    
-    <a href="/producer.html">
-      <div class="card">
-        <h2>🎬 Producer</h2>
-        <p>Create and manage a presentation session. Control the clicker lock, set timers, and manage speaker notes.</p>
-      </div>
-    </a>
-    
-    <a href="/clicker.html">
-      <div class="card">
-        <h2>📱 Clicker</h2>
-        <p>Join a session from your phone or computer. Advance slides with large, easy-to-tap buttons.</p>
-      </div>
-    </a>
-    
-    <a href="/show.html">
-      <div class="card">
-        <h2>🖥️ Show Client (Browser)</h2>
-        <p>Browser-based show client for testing. For production, use the Node.js CLI client to control desktop apps.</p>
-      </div>
-    </a>
-    
-    <div class="footer">
-      Open source • MIT License
+  <nav class="nav">
+    <div class="nav-logo">🎯 Open Clicker</div>
+    <div class="nav-links">
+      <a href="/clicker.html" class="nav-link">Join Session</a>
+      <a href="/signin.html" class="btn-secondary btn">Sign In</a>
     </div>
-  </div>
+  </nav>
+
+  <section class="hero">
+    <h1>Control Your Slideshow from Anywhere</h1>
+    <p>The open-source remote presenter tool that simply works. Control slides, manage presenters, and run professional presentations.</p>
+    <div class="hero-buttons">
+      <a href="/signin.html" class="btn" style="font-size: 18px; padding: 14px 32px;">Get Started Free</a>
+      <a href="/clicker.html" class="btn-secondary btn" style="font-size: 18px; padding: 14px 32px;">Join with Code</a>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Packed Full of Features</h2>
+    <p class="section-subtitle">Everything you need to run professional presentations</p>
+    
+    <div class="features">
+      <div class="feature-card">
+        <div class="feature-icon">📱</div>
+        <h3>Mobile Clicker</h3>
+        <p>Control your slides from any phone, tablet, or computer. Large, easy-to-tap buttons designed for presenters.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">⏱️</div>
+        <h3>Countdown Timer</h3>
+        <p>Set timers for your presenters. Color changes as time runs out to help keep presentations on schedule.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">📝</div>
+        <h3>Speaker Notes</h3>
+        <p>Display speaker notes on the clicker so presenters can reference them while presenting.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <h3>Multiple Presenters</h3>
+        <p>Support unlimited presenters in a single session. Perfect for panel discussions and team presentations.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Presenter Control</h3>
+        <p>Lock clickers globally or suspend individual presenters. Full control over who can advance slides.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">💬</div>
+        <h3>Send Messages</h3>
+        <p>Communicate with presenters via the clicker for quick and easy messaging during your event.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">📸</div>
+        <h3>Live Screenshot</h3>
+        <p>Preview current slide on the clicker so presenters can reference what's on screen.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">🔴</div>
+        <h3>Laser Pointer</h3>
+        <p>Virtual laser pointer controlled from the clicker displays a red dot on the presentation screen.</p>
+      </div>
+      
+      <div class="feature-card">
+        <div class="feature-icon">🎤</div>
+        <h3>Voice Control</h3>
+        <p>Experimental voice recognition. Say "next slide please" or "last slide please" to advance.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section how-it-works">
+    <h2 class="section-title">How It Works</h2>
+    <p class="section-subtitle">Get up and running in minutes</p>
+    
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <h3>Sign In</h3>
+        <p>Create your free account and access the producer control center.</p>
+      </div>
+      
+      <div class="step">
+        <div class="step-number">2</div>
+        <h3>Create Session</h3>
+        <p>Start a new session and get a unique code. Configure your features and settings.</p>
+      </div>
+      
+      <div class="step">
+        <div class="step-number">3</div>
+        <h3>Share Code</h3>
+        <p>Share the session code or direct link with your presenters. They join from any device.</p>
+      </div>
+      
+      <div class="step">
+        <div class="step-number">4</div>
+        <h3>Present</h3>
+        <p>Control slides, manage presenters, set timers, and run your show like a pro.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Works with All Presentation Software</h2>
+    <p class="section-subtitle">Compatible with PowerPoint, Keynote, Google Slides, Prezi, and more</p>
+  </section>
+
+  <section class="cta-section">
+    <h2>Ready to Get Started?</h2>
+    <p>Join thousands of professionals using Open Clicker for their presentations</p>
+    <a href="/signin.html" class="btn" style="font-size: 18px; padding: 14px 32px; background: white; color: #667eea;">Get Started Free</a>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-links">
+        <a href="https://github.com/dgoran/open-clicker" class="footer-link">GitHub</a>
+        <a href="/signin.html" class="footer-link">Sign In</a>
+        <a href="/clicker.html" class="footer-link">Join Session</a>
+      </div>
+      <p style="margin-top: 20px;">Open Clicker • Open Source • MIT License</p>
+    </div>
+  </footer>
 </body>
 </html>

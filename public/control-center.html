@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f5f5">
+  <title>Control Center - Open Clicker</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+      min-height: 100vh;
+    }
+    .nav {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .nav-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #667eea;
+    }
+    .nav-user {
+      color: #666;
+      font-size: 14px;
+    }
+    .button {
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .button:hover {
+      background: #5568d3;
+    }
+    .button:active {
+      transform: scale(0.98);
+    }
+    .button.secondary {
+      background: #6c757d;
+    }
+    .button.secondary:hover {
+      background: #5a6268;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .welcome-section {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .welcome-section h1 {
+      color: #333;
+      margin-bottom: 12px;
+      font-size: 28px;
+    }
+    .welcome-section p {
+      color: #666;
+      margin-bottom: 24px;
+      font-size: 16px;
+    }
+    .create-session-btn {
+      font-size: 18px;
+      padding: 14px 32px;
+    }
+    .active-sessions {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .active-sessions h2 {
+      color: #333;
+      margin-bottom: 16px;
+      font-size: 20px;
+    }
+    .session-list {
+      display: grid;
+      gap: 12px;
+    }
+    .session-card {
+      background: #f8f9fa;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 16px;
+      transition: all 0.2s;
+    }
+    .session-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+    .session-code {
+      font-size: 24px;
+      font-weight: bold;
+      color: #667eea;
+      font-family: 'Courier New', monospace;
+      margin-bottom: 8px;
+    }
+    .session-info {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .session-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .share-url {
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .share-url input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 14px;
+      color: #666;
+      font-family: 'Courier New', monospace;
+    }
+    .copy-btn {
+      padding: 8px 16px;
+      font-size: 13px;
+    }
+    .no-sessions {
+      color: #999;
+      font-style: italic;
+      text-align: center;
+      padding: 40px 20px;
+    }
+    #auth-screen, #control-center {
+      display: none;
+    }
+    #auth-screen.active, #control-center.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="auth-screen">
+    <div class="welcome-section" style="max-width: 500px; margin: 100px auto;">
+      <h1>🎯 Open Clicker</h1>
+      <p>Please sign in to access the Control Center</p>
+      <a href="/signin.html" class="button create-session-btn">Sign In</a>
+    </div>
+  </div>
+
+  <div id="control-center">
+    <div class="container">
+      <div class="nav">
+        <div>
+          <div class="nav-title">🎯 Control Center</div>
+          <div class="nav-user" id="navUser"></div>
+        </div>
+        <button class="button secondary" onclick="logout()">Sign Out</button>
+      </div>
+
+      <div class="welcome-section" id="welcomeSection">
+        <h1>Welcome to Open Clicker</h1>
+        <p>Create a new session to start managing your presentation</p>
+        <button class="button create-session-btn" onclick="createSession()">Create New Session</button>
+      </div>
+
+      <div class="active-sessions" id="activeSessionsCard" style="display: none;">
+        <h2>Active Session</h2>
+        <div class="session-list" id="sessionsList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let userId = null;
+    let userEmail = null;
+    let activeSession = null;
+
+    async function checkAuth() {
+      try {
+        const response = await fetch('/api/me');
+        const data = await response.json();
+        
+        if (data.authenticated) {
+          userId = data.userId;
+          userEmail = data.email;
+          showControlCenter();
+        } else {
+          showAuthScreen();
+        }
+      } catch (error) {
+        console.error('Auth check error:', error);
+        showAuthScreen();
+      }
+    }
+
+    function showAuthScreen() {
+      document.getElementById('auth-screen').classList.add('active');
+      document.getElementById('control-center').classList.remove('active');
+    }
+
+    function showControlCenter() {
+      document.getElementById('auth-screen').classList.remove('active');
+      document.getElementById('control-center').classList.add('active');
+      document.getElementById('navUser').textContent = `Signed in as ${userEmail}`;
+    }
+
+    function createSession() {
+      socket.emit('create-session');
+    }
+
+    socket.on('session-created', ({ code, token, requireName, features }) => {
+      activeSession = { code, token, requireName, features };
+      
+      document.getElementById('welcomeSection').style.display = 'none';
+      document.getElementById('activeSessionsCard').style.display = 'block';
+      
+      renderActiveSession();
+      
+      window.location.href = `/producer.html?code=${code}`;
+    });
+
+    function renderActiveSession() {
+      if (!activeSession) return;
+      
+      const shareUrl = `${window.location.origin}/clicker.html?code=${activeSession.code}`;
+      
+      document.getElementById('sessionsList').innerHTML = `
+        <div class="session-card">
+          <div class="session-code">${activeSession.code}</div>
+          <div class="session-info">Share this code with presenters to join the session</div>
+          <div class="share-url">
+            <input type="text" id="shareUrl" value="${shareUrl}" readonly>
+            <button class="button copy-btn" onclick="copyShareUrl()">Copy Link</button>
+          </div>
+          <div class="session-actions">
+            <button class="button" onclick="openProducer()">Open Producer Controls</button>
+            <button class="button secondary" onclick="endSession()">End Session</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function copyShareUrl() {
+      const input = document.getElementById('shareUrl');
+      input.select();
+      document.execCommand('copy');
+      
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => {
+        btn.textContent = originalText;
+      }, 2000);
+    }
+
+    function openProducer() {
+      window.location.href = `/producer.html?code=${activeSession.code}`;
+    }
+
+    function endSession() {
+      if (confirm('Are you sure you want to end this session?')) {
+        socket.disconnect();
+        activeSession = null;
+        document.getElementById('welcomeSection').style.display = 'block';
+        document.getElementById('activeSessionsCard').style.display = 'none';
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/';
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
+    }
+
+    checkAuth();
+  </script>
+</body>
+</html>

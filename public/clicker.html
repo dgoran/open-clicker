@@ -890,6 +890,14 @@
         submitNameFromModal();
       }
     });
+
+    // Auto-join if code is in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlCode = urlParams.get('code');
+    if (urlCode) {
+      document.getElementById('codeInput').value = urlCode.toUpperCase();
+      checkSessionAndJoin();
+    }
   </script>
 </body>
 </html>

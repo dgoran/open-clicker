@@ -461,7 +461,7 @@
       cueBeepsEnabled: false
     };
 
-    async function checkAuth() {
+    function checkAuth() {
       try {
         const response = await fetch('/api/me');
         const data = await response.json();
@@ -469,7 +469,19 @@
         if (data.authenticated) {
           userId = data.userId;
           userEmail = data.email;
-          showSetup();
+          
+          // Check if code is in URL (direct link from control center)
+          const urlParams = new URLSearchParams(window.location.search);
+          const urlCode = urlParams.get('code');
+          if (urlCode) {
+            // Skip setup, go straight to producer view with this code
+            // (Note: in full implementation, would verify this is user's session)
+            showProducer();
+            document.getElementById('sessionCode').textContent = urlCode.toUpperCase();
+            sessionCode = urlCode.toUpperCase();
+          } else {
+            showSetup();
+          }
         } else {
           showAuth();
         }
