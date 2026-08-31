@@ -462,8 +462,13 @@
         requireName = data.requireName;
         
         if (requireName) {
-          document.getElementById('nameFieldContainer').style.display = 'block';
-          document.getElementById('error').textContent = '';
+          const nameFieldContainer = document.getElementById('nameFieldContainer');
+          if (nameFieldContainer.style.display === 'block') {
+            joinSession(code);
+          } else {
+            nameFieldContainer.style.display = 'block';
+            document.getElementById('error').textContent = '';
+          }
         } else {
           joinSession(code);
         }
