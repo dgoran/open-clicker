@@ -291,9 +291,11 @@
   <div id="join-screen">
     <h1>🎯 Clicker</h1>
     <div class="join-form">
-      <input type="text" id="displayNameInput" placeholder="Your Name (optional)" autocomplete="off" style="text-transform: none; letter-spacing: normal;">
       <input type="text" id="codeInput" placeholder="Session Code" autocomplete="off">
-      <button class="button" onclick="joinSession()">Join Session</button>
+      <div id="nameFieldContainer" style="display: none;">
+        <input type="text" id="displayNameInput" placeholder="Your Name" autocomplete="off" style="text-transform: none; letter-spacing: normal;">
+      </div>
+      <button class="button" onclick="checkSessionAndJoin()">Join Session</button>
       <div class="error" id="error"></div>
     </div>
   </div>
@@ -346,6 +348,7 @@
     let timerInterval = null;
     let timerEndTime = null;
     let clockInterval = null;
+    let requireName = false;
 
     async function requestWakeLock() {
       if ('wakeLock' in navigator) {
@@ -405,6 +408,11 @@
       document.getElementById('nameModal').classList.add('active');
     });
 
+    socket.on('display-name-updated', ({ displayName }) => {
+      console.log('Display name updated to:', displayName);
+      closeNameModal();
+    });
+
     socket.on('lock-changed', ({ locked }) => {
       updateLockStatus(locked);
     });
@@ -434,13 +442,53 @@
       location.reload();
     });
 
-    function joinSession() {
-      const displayName = document.getElementById('displayNameInput').value.trim();
+    async function checkSessionAndJoin() {
       const code = document.getElementById('codeInput').value.trim().toUpperCase();
       
       if (!code) {
         document.getElementById('error').textContent = 'Please enter session code';
         return;
+      }
+      
+      try {
+        const response = await fetch(`/api/session/${code}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+          document.getElementById('error').textContent = data.error || 'Session not found';
+          return;
+        }
+        
+        requireName = data.requireName;
+        
+        if (requireName) {
+          document.getElementById('nameFieldContainer').style.display = 'block';
+          document.getElementById('error').textContent = '';
+        } else {
+          joinSession(code);
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+        document.getElementById('error').textContent = 'Network error';
+      }
+    }
+
+    function joinSession(code) {
+      if (!code) {
+        code = document.getElementById('codeInput').value.trim().toUpperCase();
+      }
+      
+      let displayName = '';
+      const nameField = document.getElementById('displayNameInput');
+      
+      if (requireName) {
+        displayName = nameField.value.trim();
+        if (!displayName) {
+          document.getElementById('error').textContent = 'Please enter your name';
+          return;
+        }
+      } else {
+        displayName = nameField.value.trim();
       }
       
       document.getElementById('error').textContent = '';
@@ -459,8 +507,13 @@
         return;
       }
       
-      closeNameModal();
-      alert(`Name submitted: ${name}\n\nNote: In a full implementation, this would update your display name on the server.`);
+      if (sessionCode && clickerToken) {
+        socket.emit('set-display-name', { 
+          code: sessionCode, 
+          token: clickerToken, 
+          displayName: name 
+        });
+      }
     }
 
     function sendCommand(direction) {
@@ -557,13 +610,16 @@
 
     document.getElementById('displayNameInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
-        joinSession();
+        const code = document.getElementById('codeInput').value.trim().toUpperCase();
+        if (code) {
+          joinSession(code);
+        }
       }
     });
 
     document.getElementById('codeInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
-        joinSession();
+        checkSessionAndJoin();
       }
     });
 

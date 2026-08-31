@@ -30,9 +30,7 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-app.use(express.json());
-app.use(cookieParser());
-app.use(session({
+const sessionMiddleware = session({
   secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,
@@ -41,8 +39,14 @@ app.use(session({
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000
   }
-}));
+});
+
+app.use(express.json());
+app.use(cookieParser());
+app.use(sessionMiddleware);
 app.use(express.static('public'));
+
+io.engine.use(sessionMiddleware);
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -139,11 +143,27 @@ app.get('/api/me', (req, res) => {
   }
 });
 
+app.get('/api/session/:code', (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const session = sessions.get(code);
+  
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  res.json({ 
+    code: session.code,
+    requireName: session.requireName,
+    locked: session.locked
+  });
+});
+
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
 
-  socket.on('create-session', (data) => {
-    const userId = data?.userId;
+  socket.on('create-session', () => {
+    const session = socket.request.session;
+    const userId = session?.userId;
     
     if (!userId) {
       socket.emit('error', { message: 'Authentication required to create session' });
@@ -410,6 +430,47 @@ io.on('connection', (socket) => {
     }
     
     console.log(`Session ${code}: name prompt sent to anonymous presenters`);
+  });
+
+  socket.on('set-display-name', ({ code, token, displayName }) => {
+    const session = sessions.get(code);
+    if (!session) {
+      socket.emit('error', { message: 'Session not found' });
+      return;
+    }
+    
+    const isClicker = session.clickers.get(socket.id) === token;
+    if (!isClicker) {
+      socket.emit('error', { message: 'Unauthorized: Invalid clicker token' });
+      return;
+    }
+    
+    if (!displayName || displayName.trim() === '') {
+      socket.emit('error', { message: 'Display name cannot be empty' });
+      return;
+    }
+    
+    const presenter = session.presenters.get(socket.id);
+    if (!presenter) {
+      socket.emit('error', { message: 'Presenter not found' });
+      return;
+    }
+    
+    presenter.displayName = displayName.trim();
+    presenter.isAnonymous = false;
+    
+    socket.emit('display-name-updated', { displayName: presenter.displayName });
+    
+    io.to(session.producer).emit('presenters-updated', {
+      presenters: Array.from(session.presenters.entries()).map(([id, data]) => ({
+        id,
+        displayName: data.displayName,
+        clickAccessEnabled: data.clickAccessEnabled,
+        isAnonymous: data.isAnonymous
+      }))
+    });
+    
+    console.log(`Session ${code}: ${socket.id} changed name to ${presenter.displayName}`);
   });
 
   socket.on('disconnect', () => {

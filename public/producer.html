@@ -564,7 +564,7 @@
         alert('Please log in first');
         return;
       }
-      socket.emit('create-session', { userId });
+      socket.emit('create-session');
     }
 
     function setLock(locked) {
