@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,8 +14,37 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const SALT_ROUNDS = 10;
+const USERS_FILE = process.env.USERS_FILE || path.join(__dirname, 'users.json');
 
-const users = new Map();
+function loadUsers() {
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      const data = fs.readFileSync(USERS_FILE, 'utf8');
+      const usersArray = JSON.parse(data);
+      const users = new Map();
+      usersArray.forEach(user => {
+        users.set(user.email, user);
+      });
+      console.log(`Loaded ${users.size} users from ${USERS_FILE}`);
+      return users;
+    }
+  } catch (error) {
+    console.error('Error loading users:', error);
+  }
+  return new Map();
+}
+
+function saveUsers(users) {
+  try {
+    const usersArray = Array.from(users.values());
+    fs.writeFileSync(USERS_FILE, JSON.stringify(usersArray, null, 2), 'utf8');
+    console.log(`Saved ${usersArray.length} users to ${USERS_FILE}`);
+  } catch (error) {
+    console.error('Error saving users:', error);
+  }
+}
+
+const users = loadUsers();
 const sessions = new Map();
 
 function generateCode() {
@@ -52,6 +82,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+app.get('/superadmin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'superadmin.html'));
+});
+
 app.post('/api/signup', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -79,6 +113,7 @@ app.post('/api/signup', async (req, res) => {
       passwordHash,
       createdAt: Date.now()
     });
+    saveUsers(users);
     
     req.session.userId = userId;
     req.session.email = emailLower;
@@ -141,6 +176,121 @@ app.get('/api/me', (req, res) => {
   } else {
     res.json({ authenticated: false });
   }
+});
+
+app.post('/api/superadmin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+    
+    const superadminUser = process.env.SUPERADMIN_USER || 'admin';
+    const superadminPassword = process.env.SUPERADMIN_PASSWORD;
+    
+    if (!superadminPassword) {
+      console.error('SUPERADMIN_PASSWORD not set in environment');
+      return res.status(500).json({ error: 'Superadmin not configured' });
+    }
+    
+    if (username !== superadminUser || password !== superadminPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    req.session.superadmin = true;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Superadmin login error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+function requireSuperadmin(req, res, next) {
+  if (!req.session.superadmin) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
+app.get('/api/superadmin/users', requireSuperadmin, (req, res) => {
+  try {
+    const usersList = Array.from(users.values()).map(user => ({
+      userId: user.userId,
+      email: user.email,
+      createdAt: user.createdAt
+    }));
+    res.json({ users: usersList });
+  } catch (error) {
+    console.error('List users error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/superadmin/users', requireSuperadmin, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+    
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    
+    const emailLower = email.toLowerCase().trim();
+    
+    if (users.has(emailLower)) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+    
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const userId = crypto.randomBytes(16).toString('hex');
+    
+    users.set(emailLower, {
+      userId,
+      email: emailLower,
+      passwordHash,
+      createdAt: Date.now()
+    });
+    saveUsers(users);
+    
+    res.json({ success: true, userId, email: emailLower });
+  } catch (error) {
+    console.error('Add user error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.delete('/api/superadmin/users/:userId', requireSuperadmin, (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    let deleted = false;
+    for (const [email, user] of users.entries()) {
+      if (user.userId === userId) {
+        users.delete(email);
+        deleted = true;
+        break;
+      }
+    }
+    
+    if (!deleted) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    saveUsers(users);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/superadmin/logout', (req, res) => {
+  req.session.superadmin = false;
+  res.json({ success: true });
 });
 
 app.get('/api/session/:code', (req, res) => {
@@ -503,4 +653,13 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, () => {
   console.log(`Open Clicker server running on http://localhost:${PORT}`);
+  
+  if (!process.env.SESSION_SECRET) {
+    console.warn('WARNING: SESSION_SECRET not set in environment. Sessions will not persist across restarts.');
+    console.warn('Set SESSION_SECRET in your environment variables for production.');
+  }
+  
+  if (!process.env.SUPERADMIN_PASSWORD) {
+    console.warn('WARNING: SUPERADMIN_PASSWORD not set. Superadmin panel will not be accessible.');
+  }
 });

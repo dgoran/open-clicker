@@ -11,3 +11,5 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+users.json
+test-users.json
