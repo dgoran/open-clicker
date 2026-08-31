@@ -158,6 +158,17 @@
     }
     .timer.warning { color: #ffc107; }
     .timer.danger { color: #dc3545; }
+    .laser-pointer {
+      position: fixed;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,0,0,1) 0%, rgba(255,0,0,0.8) 50%, rgba(255,0,0,0) 100%);
+      pointer-events: none;
+      z-index: 9999;
+      display: none;
+      box-shadow: 0 0 20px rgba(255,0,0,0.8);
+    }
     .cue-indicators {
       flex: 1;
       display: grid;
@@ -272,6 +283,8 @@
       </div>
     </div>
     
+    <div class="laser-pointer" id="laserPointer"></div>
+    
     <div class="cue-indicators">
       <div class="cue-indicator prev" id="prevIndicator">
         <div class="led-triangle" id="prevTriangle"></div>
@@ -295,6 +308,8 @@
     let timerInterval = null;
     let timerEndTime = null;
     let clockInterval = null;
+    let features = {};
+    let screenshotInterval = null;
 
     function createLEDTriangle(container, direction) {
       const rows = direction === 'left' ? 7 : 7;
@@ -330,6 +345,7 @@
     socket.on('session-joined', (data) => {
       sessionCode = data.code;
       showToken = data.token;
+      features = data.features || {};
       
       document.getElementById('sessionCode').textContent = data.code;
       document.getElementById('join-screen').style.display = 'none';
@@ -349,6 +365,10 @@
       
       updateClock();
       clockInterval = setInterval(updateClock, 1000);
+      
+      if (features.screenshotEnabled) {
+        startScreenshotCapture();
+      }
     });
 
     socket.on('advance', ({ direction }) => {
@@ -379,6 +399,27 @@
       updateTimerDisplay();
       if (timerInterval) clearInterval(timerInterval);
       timerInterval = setInterval(updateTimerDisplay, 100);
+    });
+
+    socket.on('features-changed', ({ features: newFeatures }) => {
+      features = { ...features, ...newFeatures };
+      
+      if (features.screenshotEnabled && !screenshotInterval) {
+        startScreenshotCapture();
+      } else if (!features.screenshotEnabled && screenshotInterval) {
+        stopScreenshotCapture();
+      }
+    });
+
+    socket.on('laser-pointer', ({ x, y, active }) => {
+      const laser = document.getElementById('laserPointer');
+      if (active && features.laserPointerEnabled) {
+        laser.style.display = 'block';
+        laser.style.left = (x * window.innerWidth - 12) + 'px';
+        laser.style.top = (y * window.innerHeight - 12) + 'px';
+      } else {
+        laser.style.display = 'none';
+      }
     });
 
     socket.on('error', ({ message }) => {
@@ -449,6 +490,52 @@
         display.className = 'timer danger';
       } else if (remaining < 300000) {
         display.className = 'timer warning';
+      }
+    }
+
+    async function captureScreenshot() {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        const data = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}">
+          <foreignObject width="100%" height="100%">
+            <div xmlns="http://www.w3.org/1999/xhtml" style="font-size: 48px; color: white; background: #1a1a1a; padding: 20px; text-align: center;">
+              Screenshot capture requires show-machine app
+            </div>
+          </foreignObject>
+        </svg>`;
+        
+        const img = new Image();
+        const blob = new Blob([data], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+          const screenshot = canvas.toDataURL('image/jpeg', 0.6);
+          socket.emit('screenshot-upload', { code: sessionCode, token: showToken, screenshot });
+          URL.revokeObjectURL(url);
+        };
+        
+        img.src = url;
+      } catch (error) {
+        console.error('Screenshot capture error:', error);
+      }
+    }
+
+    function startScreenshotCapture() {
+      if (screenshotInterval) return;
+      captureScreenshot();
+      screenshotInterval = setInterval(captureScreenshot, 2000);
+    }
+
+    function stopScreenshotCapture() {
+      if (screenshotInterval) {
+        clearInterval(screenshotInterval);
+        screenshotInterval = null;
       }
     }
 

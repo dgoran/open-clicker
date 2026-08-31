@@ -184,10 +184,19 @@ io.on('connection', (socket) => {
       userId,
       clickers: new Map(),
       showClients: new Map(),
-      presenters: new Map()
+      presenters: new Map(),
+      features: {
+        screenshotEnabled: false,
+        messagesEnabled: false,
+        laserPointerEnabled: false,
+        voiceControlEnabled: false,
+        cueBeepsEnabled: false
+      },
+      screenshot: null,
+      lastScreenshotTime: null
     });
     socket.join(code);
-    socket.emit('session-created', { code, token: producerToken, requireName: true });
+    socket.emit('session-created', { code, token: producerToken, requireName: true, features: sessions.get(code).features });
     console.log('Session created:', code, 'by user:', userId);
   });
 
@@ -225,7 +234,9 @@ io.on('connection', (socket) => {
         timer: session.timer,
         timerStartedAt: session.timerStartedAt,
         clickAccessEnabled: true,
-        requireName: session.requireName
+        requireName: session.requireName,
+        features: session.features,
+        screenshot: session.screenshot
       });
       
       io.to(session.producer).emit('presenters-updated', {
@@ -238,7 +249,7 @@ io.on('connection', (socket) => {
       });
     } else if (role === 'show-client') {
       session.showClients.set(socket.id, token);
-      socket.emit('session-joined', { code, token });
+      socket.emit('session-joined', { code, token, features: session.features });
     }
     
     console.log(`Client ${socket.id} joined session ${code} as ${role}${displayName ? ` (${displayName})` : ' (anonymous)'}`);
@@ -471,6 +482,100 @@ io.on('connection', (socket) => {
     });
     
     console.log(`Session ${code}: ${socket.id} changed name to ${presenter.displayName}`);
+  });
+
+  socket.on('set-features', ({ code, token, features }) => {
+    const session = sessions.get(code);
+    if (!session) {
+      socket.emit('error', { message: 'Session not found' });
+      return;
+    }
+    if (session.producer !== socket.id || session.producerToken !== token) {
+      socket.emit('error', { message: 'Unauthorized: Invalid producer token' });
+      return;
+    }
+    
+    session.features = { ...session.features, ...features };
+    io.to(code).emit('features-changed', { features: session.features });
+    console.log(`Session ${code}: features updated`, features);
+  });
+
+  socket.on('screenshot-upload', ({ code, token, screenshot }) => {
+    const session = sessions.get(code);
+    if (!session) {
+      socket.emit('error', { message: 'Session not found' });
+      return;
+    }
+    const isShowClient = session.showClients.get(socket.id) === token;
+    if (!isShowClient) {
+      socket.emit('error', { message: 'Unauthorized: Invalid show client token' });
+      return;
+    }
+    
+    if (session.features.screenshotEnabled) {
+      session.screenshot = screenshot;
+      session.lastScreenshotTime = Date.now();
+      
+      for (const [clickerId] of session.clickers.entries()) {
+        io.to(clickerId).emit('screenshot-updated', { screenshot });
+      }
+    }
+  });
+
+  socket.on('send-message', ({ code, token, targetId, message }) => {
+    const session = sessions.get(code);
+    if (!session) {
+      socket.emit('error', { message: 'Session not found' });
+      return;
+    }
+    if (session.producer !== socket.id || session.producerToken !== token) {
+      socket.emit('error', { message: 'Unauthorized: Invalid producer token' });
+      return;
+    }
+    
+    if (!session.features.messagesEnabled) {
+      socket.emit('error', { message: 'Messaging feature is disabled' });
+      return;
+    }
+    
+    const messageData = {
+      message,
+      timestamp: Date.now(),
+      from: 'Producer'
+    };
+    
+    if (targetId === 'all') {
+      for (const [clickerId] of session.clickers.entries()) {
+        io.to(clickerId).emit('message-received', messageData);
+      }
+      console.log(`Session ${code}: message sent to all presenters`);
+    } else {
+      if (session.clickers.has(targetId)) {
+        io.to(targetId).emit('message-received', messageData);
+        console.log(`Session ${code}: message sent to ${targetId}`);
+      }
+    }
+  });
+
+  socket.on('laser-pointer', ({ code, token, x, y, active }) => {
+    const session = sessions.get(code);
+    if (!session) {
+      socket.emit('error', { message: 'Session not found' });
+      return;
+    }
+    const isClicker = session.clickers.get(socket.id) === token;
+    if (!isClicker) {
+      socket.emit('error', { message: 'Unauthorized: Invalid clicker token' });
+      return;
+    }
+    
+    if (!session.features.laserPointerEnabled) {
+      return;
+    }
+    
+    for (const [showClientId] of session.showClients.entries()) {
+      io.to(showClientId).emit('laser-pointer', { x, y, active, presenterId: socket.id });
+    }
   });
 
   socket.on('disconnect', () => {
