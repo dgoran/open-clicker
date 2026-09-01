@@ -72,6 +72,21 @@
       margin: 0;
       flex: 0 0 auto;
     }
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    .header-actions .button {
+      font-size: 14px;
+      padding: 10px 18px;
+      min-height: 40px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+    }
     .share-qr {
       text-align: center;
       margin-top: 16px;
@@ -433,7 +448,11 @@
             <p>Scan to join as presenter</p>
           </div>
         </div>
-        <button class="button secondary" onclick="endSessionAndLogout()" style="margin-top: 12px;">End Session & Logout</button>
+        <div class="header-actions">
+          <a class="button secondary" href="/control-center.html">&larr; Control Center</a>
+          <button class="button danger" onclick="endSession()">End Session</button>
+          <button class="button secondary" onclick="logout()">Logout</button>
+        </div>
       </header>
 
       <div class="card">
@@ -713,16 +732,24 @@
       }
     }
 
-    async function endSessionAndLogout() {
-      if (confirm('Are you sure you want to end this session and logout?')) {
-        try {
-          await fetch(`/api/sessions/${sessionCode}`, { method: 'DELETE' });
-        } catch (error) {
-          console.error('End session error:', error);
+    async function endSession() {
+      if (!sessionCode) return;
+      if (!confirm(`End session ${sessionCode}? Everyone connected will be disconnected.`)) return;
+
+      try {
+        const response = await fetch(`/api/sessions/${sessionCode}`, { method: 'DELETE' });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          alert(`Could not end the session: ${data.error || 'HTTP ' + response.status}`);
+          return;
         }
-        socket.disconnect();
-        await logout();
+      } catch (error) {
+        alert(`Could not end the session: ${error.message}`);
+        return;
       }
+
+      socket.disconnect();
+      window.location.href = '/control-center.html';
     }
 
     socket.on('session-created', ({ code, token, requireName: reqName, features: sessionFeatures }) => {
