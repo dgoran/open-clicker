@@ -12,14 +12,36 @@ try {
   process.exit(1);
 }
 
-const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
-const SESSION_CODE = process.argv[2];
+// Accepts a bare code or a pasted cue link (http://host/show.html?code=XXXXXX).
+function parseTarget(input, fallbackServerUrl) {
+  const value = (input || '').trim();
+  const match = value.match(/^https?:\/\/\S+/i);
+  if (match) {
+    try {
+      const url = new URL(match[0]);
+      const code = url.searchParams.get('code');
+      if (code) {
+        return { serverUrl: url.origin, sessionCode: code.trim().toUpperCase() };
+      }
+    } catch (err) {
+      // fall through and treat the argument as a plain code
+    }
+  }
+  return { serverUrl: fallbackServerUrl, sessionCode: value.toUpperCase() };
+}
 
-if (!SESSION_CODE) {
-  console.error('Usage: node show-machine-client.js <SESSION_CODE>');
-  console.error('   or: npm run show-client <SESSION_CODE>');
+const argument = process.argv[2];
+
+if (!argument) {
+  console.error('Usage: node show-machine-client.js <SESSION_CODE | CUE_LINK>');
+  console.error('   or: npm run show-client <SESSION_CODE | CUE_LINK>');
   process.exit(1);
 }
+
+const { serverUrl: SERVER_URL, sessionCode: SESSION_CODE } = parseTarget(
+  argument,
+  process.env.SERVER_URL || 'http://localhost:3000'
+);
 
 console.log('Open Clicker - Show Machine Client');
 console.log('===================================');
@@ -27,27 +49,39 @@ console.log(`Connecting to: ${SERVER_URL}`);
 console.log(`Session code: ${SESSION_CODE}`);
 console.log('');
 
-const socket = io(SERVER_URL);
-let showToken = null; // eslint-disable-line no-unused-vars
+// Sessions outlive server restarts and network blips, so keep retrying and
+// rejoin automatically instead of exiting on the first disconnect.
+const socket = io(SERVER_URL, {
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 10000
+});
+
+let hasJoined = false;
 
 socket.on('connect', () => {
   console.log('✓ Connected to server');
   socket.emit('join-session', { code: SESSION_CODE, role: 'show-client' });
 });
 
-socket.on('session-joined', ({ token }) => {
-  showToken = token;
-  console.log('✓ Joined session successfully');
-  console.log('');
-  console.log('Ready! Focus your presentation window.');
-  console.log('The client will inject arrow keys when next/prev is clicked.');
-  console.log('Press Ctrl+C to exit.');
-  console.log('');
+socket.on('session-joined', () => {
+  if (!hasJoined) {
+    hasJoined = true;
+    console.log('✓ Joined session successfully');
+    console.log('');
+    console.log('Ready! Focus your presentation window.');
+    console.log('The client will inject arrow keys when next/prev is clicked.');
+    console.log('Press Ctrl+C to exit.');
+    console.log('');
+  } else {
+    console.log('✓ Rejoined session');
+  }
 });
 
 socket.on('advance', ({ direction }) => {
   console.log(`→ ${direction.toUpperCase()}`);
-  
+
   try {
     if (direction === 'next') {
       robot.keyTap('right');
@@ -67,18 +101,23 @@ socket.on('session-ended', () => {
 
 socket.on('error', ({ message }) => {
   console.error('Error:', message);
-  process.exit(1);
+  // A missing session or rejected token is fatal; anything transient is
+  // handled by the reconnect logic.
+  if (/not found|Unauthorized/i.test(message)) {
+    process.exit(1);
+  }
 });
 
-socket.on('connect_error', (error) => {
-  console.error('Connection error:', error.message);
-  process.exit(1);
+socket.io.on('reconnect_attempt', (attempt) => {
+  if (attempt === 1) {
+    console.log('Connection lost. Reconnecting…');
+  }
 });
 
-socket.on('disconnect', () => {
-  console.log('');
-  console.log('Disconnected from server.');
-  process.exit(0);
+socket.on('disconnect', (reason) => {
+  if (reason === 'io client disconnect') {
+    process.exit(0);
+  }
 });
 
 process.on('SIGINT', () => {
@@ -87,3 +126,5 @@ process.on('SIGINT', () => {
   socket.disconnect();
   process.exit(0);
 });
+
+module.exports = { parseTarget };

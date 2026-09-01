@@ -14,7 +14,9 @@ Open-source remote presenter clicker: control slides from your phone or browser.
   - Choose to control PowerPoint, Keynote, or any focused window
   - Automatically brings the target app forward and sends keys to it
   - Receives clicks and injects arrow keys into the targeted application
-- **Speaker Notes**: Simple paste/edit notes field synchronized across devices
+- **Speaker Notes**: Notes shown on every presenter's clicker — typed by the producer, or read live from PowerPoint/Keynote by the show-machine app
+- **Speaker Chat**: Producer sends chat messages to presenters mid-show
+- **Screen Casting**: Show machine sends a live preview of the slide screen to presenters' phones
 - **Countdown Timer**: Visual timer for presentations
 
 ## Quick Start
@@ -408,7 +410,10 @@ The system uses Socket.io events for communication:
 - `join-session`: Clients join with a code
 - `next` / `prev`: Advance slides
 - `set-lock`: Enable/disable clicking
-- `set-notes`: Update speaker notes
+- `set-notes`: Producer updates speaker notes
+- `set-show-notes`: Show machine pushes PowerPoint/Keynote notes for the current slide
+- `send-message`: Producer sends a Speaker Chat message to presenters
+- `screenshot-upload`: Show machine sends a slide screenshot to presenters
 - `set-timer`: Set countdown timer
 
 ## License

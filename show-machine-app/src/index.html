@@ -5,287 +5,238 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Open Clicker Show Machine</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      padding: 20px;
+      background: #f2f3f7;
+      color: #222;
+      padding: 16px;
       height: 100vh;
       display: flex;
       flex-direction: column;
+      gap: 12px;
+      font-size: 13px;
     }
 
-    .container {
+    .panel {
       background: white;
-      border-radius: 12px;
-      padding: 30px;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-      flex: 1;
+      border: 1px solid #e2e4ec;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .row {
       display: flex;
-      flex-direction: column;
-    }
-
-    h1 {
-      color: #333;
+      align-items: center;
+      gap: 10px;
       margin-bottom: 10px;
-      font-size: 24px;
     }
+    .row:last-child { margin-bottom: 0; }
 
-    .subtitle {
-      color: #666;
-      margin-bottom: 30px;
-      font-size: 14px;
-    }
-
-    .form-group {
-      margin-bottom: 20px;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 8px;
+    label.inline {
+      flex: 0 0 90px;
       color: #555;
-      font-weight: 500;
-      font-size: 14px;
+      font-weight: 600;
+      text-align: right;
     }
 
-    input, select {
-      width: 100%;
-      padding: 12px;
-      border: 2px solid #e0e0e0;
-      border-radius: 6px;
-      font-size: 14px;
-      transition: border-color 0.3s;
-      background: white;
+    input[type="text"], select {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid #d6d9e3;
+      border-radius: 7px;
+      font-size: 13px;
+      background: #fbfbfd;
+      color: #222;
     }
-
-    input:focus, select:focus {
+    input[type="text"]:focus, select:focus {
       outline: none;
       border-color: #667eea;
-    }
-
-    input::placeholder {
-      color: #aaa;
-    }
-
-    select {
-      cursor: pointer;
-    }
-
-    .target-info {
-      margin-top: 8px;
-    }
-
-    .target-info small {
-      color: #777;
-      font-size: 12px;
-      line-height: 1.4;
+      background: white;
     }
 
     button {
-      width: 100%;
-      padding: 14px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: #667eea;
       color: white;
       border: none;
-      border-radius: 6px;
-      font-size: 16px;
+      border-radius: 7px;
+      padding: 8px 16px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      flex: 0 0 auto;
     }
+    button:hover:not(:disabled) { background: #5568d3; }
+    button:disabled { background: #c3c6d4; cursor: default; }
+    button.secondary { background: #6c757d; }
+    button.secondary:hover:not(:disabled) { background: #5a6268; }
 
-    button:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    }
-
-    button:active:not(:disabled) {
-      transform: translateY(0);
-    }
-
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    button.disconnect {
-      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-      margin-top: 10px;
-    }
-
-    button.disconnect:hover:not(:disabled) {
-      box-shadow: 0 4px 12px rgba(245, 87, 108, 0.4);
-    }
-
-    .status {
-      margin-top: 20px;
-      padding: 15px;
-      border-radius: 6px;
-      font-size: 14px;
-      display: none;
-    }
-
-    .status.show {
-      display: block;
-    }
-
-    .status.info {
-      background: #e3f2fd;
-      color: #1976d2;
-      border-left: 4px solid #1976d2;
-    }
-
-    .status.success {
-      background: #e8f5e9;
-      color: #388e3c;
-      border-left: 4px solid #388e3c;
-    }
-
-    .status.error {
-      background: #ffebee;
-      color: #c62828;
-      border-left: 4px solid #c62828;
-    }
-
-    .status.warning {
-      background: #fff3e0;
-      color: #f57c00;
-      border-left: 4px solid #f57c00;
-    }
-
-    .activity-log {
-      margin-top: 20px;
-      flex: 1;
-      overflow-y: auto;
-      border-top: 2px solid #e0e0e0;
-      padding-top: 15px;
-    }
-
-    .activity-log h3 {
-      font-size: 14px;
-      color: #666;
-      margin-bottom: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .activity-item {
-      padding: 8px 12px;
-      background: #f5f5f5;
-      border-radius: 4px;
-      margin-bottom: 6px;
-      font-size: 13px;
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #eceef5;
       color: #555;
+    }
+    .status-pill.live { background: #e4f6ea; color: #1c7a41; }
+    .status-pill.warn { background: #fdf3e2; color: #96631a; }
+    .status-pill.err { background: #fdeaea; color: #a52222; }
+
+    .arrows {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+    }
+    .arrows button {
+      width: 92px;
+      height: 52px;
+      font-size: 24px;
+      background: #4a4f63;
+    }
+    .arrows button:hover:not(:disabled) { background: #383c4d; }
+
+    #log {
+      flex: 1;
+      min-height: 120px;
+      overflow-y: auto;
+      background: #1c1f2b;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: #d8dbe6;
+    }
+    .log-line { display: flex; gap: 8px; padding: 2px 0; }
+    .log-line .t { opacity: 0.45; flex: 0 0 auto; }
+    .log-line.success { color: #7ee2a8; }
+    .log-line.error { color: #ff9a9a; }
+    .log-line.warning { color: #ffd08a; }
+    .log-line.next, .log-line.prev { color: #9db8ff; }
+
+    .checkbox {
       display: flex;
       align-items: center;
       gap: 8px;
-    }
-
-    .activity-item .icon {
-      font-size: 16px;
-    }
-
-    .activity-item.next {
-      background: #e3f2fd;
-      color: #1976d2;
-    }
-
-    .activity-item.prev {
-      background: #fff3e0;
-      color: #f57c00;
-    }
-
-    #connect-form.hidden {
-      display: none;
-    }
-
-    #connected-view {
-      display: none;
-    }
-
-    #connected-view.show {
-      display: block;
-    }
-
-    .info-box {
-      background: #f5f5f5;
-      border-radius: 6px;
-      padding: 15px;
-      margin-bottom: 20px;
-      font-size: 13px;
-      color: #666;
-    }
-
-    .info-box strong {
+      font-weight: 500;
       color: #333;
+      cursor: pointer;
     }
+    .checkbox input { width: 15px; height: 15px; cursor: pointer; }
+    .checkbox.disabled { color: #9a9db0; cursor: default; }
+
+    .cast-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 10px;
+    }
+    .cast-grid h3 {
+      font-size: 12px;
+      color: #555;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    #screen-list {
+      border: 1px solid #e2e4ec;
+      border-radius: 8px;
+      max-height: 128px;
+      overflow-y: auto;
+      background: #fbfbfd;
+    }
+    .screen-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      cursor: pointer;
+      border-bottom: 1px solid #eef0f6;
+    }
+    .screen-item:last-child { border-bottom: none; }
+    .screen-item.selected { background: #e8ebfb; }
+    .screen-item img { width: 56px; border-radius: 3px; display: block; }
+    .screen-item span { font-size: 12px; }
+    .empty { padding: 10px; color: #9a9db0; font-size: 12px; }
+
+    input[type="range"] { width: 100%; }
+    .quality-readout {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #555;
+      margin-top: 4px;
+    }
+    .quality-readout strong { display: block; color: #222; }
+
+    .hint { color: #8a8d9e; font-size: 11px; margin-top: 6px; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🎮 Open Clicker Show Machine</h1>
-    <p class="subtitle">Connect to your session and control your presentation</p>
+  <div class="panel">
+    <div class="row">
+      <label class="inline" for="session-code">Cue link / code</label>
+      <input type="text" id="session-code" placeholder="Paste cue link or enter code" autocomplete="off">
+      <button id="connect-btn">(Re)Connect</button>
+    </div>
+    <div class="row">
+      <label class="inline" for="server-url">Server</label>
+      <input type="text" id="server-url" placeholder="http://localhost:3000" autocomplete="off">
+      <button id="disconnect-btn" class="secondary" disabled>Disconnect</button>
+    </div>
+    <div class="row">
+      <label class="inline">Status</label>
+      <span class="status-pill" id="status-pill">Not connected</span>
+    </div>
+  </div>
 
-    <div id="connect-form">
-      <form id="connection-form">
-        <div class="form-group">
-          <label for="server-url">Server URL</label>
-          <input 
-            type="text" 
-            id="server-url" 
-            placeholder="http://localhost:3000" 
-            value="http://localhost:3000"
-            required
-          >
-        </div>
+  <div class="panel arrows">
+    <button id="prev-btn" disabled>&lt;</button>
+    <button id="next-btn" disabled>&gt;</button>
+  </div>
 
-        <div class="form-group">
-          <label for="session-code">Session Code</label>
-          <input 
-            type="text" 
-            id="session-code" 
-            placeholder="ABC123" 
-            required
-            maxlength="6"
-            style="text-transform: uppercase;"
-          >
-        </div>
+  <div id="log"></div>
 
-        <div class="form-group">
-          <label for="target-app">Target Application</label>
-          <select id="target-app">
-            <option value="focused">Focused Window</option>
-            <option value="powerpoint">PowerPoint</option>
-            <option value="keynote" id="keynote-option">Keynote (macOS only)</option>
-          </select>
-          <div class="target-info">
-            <small>Choose which app to control. "Focused Window" sends keys to whichever window is active (browser slides, PDFs, etc.). Selecting PowerPoint or Keynote will bring that app forward and send keys to it specifically.</small>
-          </div>
-        </div>
-
-        <button type="submit" id="connect-btn">Connect</button>
-      </form>
+  <div class="panel">
+    <div class="row">
+      <label class="inline" for="target-app">Control</label>
+      <select id="target-app">
+        <option value="focused">Any app (focused window)</option>
+        <option value="powerpoint">Microsoft PowerPoint</option>
+        <option value="keynote" id="keynote-option">Keynote (macOS)</option>
+      </select>
     </div>
 
-    <div id="connected-view">
-      <div class="info-box">
-        <strong>Server:</strong> <span id="connected-server"></span><br>
-        <strong>Session:</strong> <span id="connected-code"></span>
+    <label class="checkbox" id="cast-label">
+      <input type="checkbox" id="cast-toggle">
+      <span>Send screenshots of the selected screen</span>
+    </label>
+    <div class="hint" id="cast-hint">The producer must enable the screenshot feature for this session.</div>
+
+    <label class="checkbox" id="notes-label" style="margin-top: 10px;">
+      <input type="checkbox" id="notes-toggle">
+      <span>Send PowerPoint speaker notes to the presenter</span>
+    </label>
+    <div class="hint" id="notes-hint">The producer must enable speaker notes for this session.</div>
+
+    <div class="cast-grid">
+      <div>
+        <h3>Screenshot quality</h3>
+        <input type="range" id="quality-slider" min="0" max="4" step="1" value="1">
+        <div class="quality-readout">
+          <div>Resolution<strong id="quality-res">400p</strong></div>
+          <div>Bandwidth<strong id="quality-bw">–</strong></div>
+        </div>
       </div>
-      <button class="disconnect" id="disconnect-btn">Disconnect</button>
-      <div class="activity-log">
-        <h3>Activity</h3>
-        <div id="activity-list"></div>
+      <div>
+        <h3>Pick a screen to cast</h3>
+        <div id="screen-list"><div class="empty">No screens listed yet</div></div>
       </div>
     </div>
-
-    <div id="status-message" class="status"></div>
   </div>
 
   <script src="renderer.js"></script>

@@ -123,6 +123,7 @@ describe('Socket Protocol (end-to-end)', function () {
       expect(created.features).to.deep.equal({
         screenshotEnabled: false,
         messagesEnabled: false,
+        speakerNotesEnabled: false,
         laserPointerEnabled: false,
         voiceControlEnabled: false,
         cueBeepsEnabled: false
@@ -321,6 +322,42 @@ describe('Socket Protocol (end-to-end)', function () {
       const msg = await received;
       expect(msg.message).to.equal('Hello presenters!');
       expect(msg.from).to.equal('Producer');
+    });
+
+    it('pushes speaker notes from the show client to presenters when enabled', async () => {
+      const { producer, code, token } = await createSession();
+      const { clicker } = await joinClicker(code);
+
+      const show = connect();
+      await once(show, 'connect');
+      show.emit('join-session', { code, role: 'show-client' });
+      const showJoined = await once(show, 'session-joined');
+
+      // blocked until the producer turns the feature on
+      let leaked = false;
+      clicker.once('notes-changed', () => (leaked = true));
+      show.emit('set-show-notes', { code, token: showJoined.token, notes: 'too early' });
+      await new Promise((r) => setTimeout(r, 100));
+      expect(leaked).to.equal(false);
+
+      producer.emit('set-features', { code, token, features: { speakerNotesEnabled: true } });
+      await once(producer, 'features-changed');
+
+      const changed = once(clicker, 'notes-changed');
+      show.emit('set-show-notes', { code, token: showJoined.token, notes: 'Slide 3: mention the roadmap' });
+      expect((await changed).notes).to.equal('Slide 3: mention the roadmap');
+      expect(serverModule.sessions.get(code).notes).to.equal('Slide 3: mention the roadmap');
+    });
+
+    it('rejects speaker notes from a client without the show token', async () => {
+      const { producer, code, token } = await createSession();
+      producer.emit('set-features', { code, token, features: { speakerNotesEnabled: true } });
+      await once(producer, 'features-changed');
+
+      const { clicker, token: clickerToken } = await joinClicker(code);
+      clicker.emit('set-show-notes', { code, token: clickerToken, notes: 'spoofed' });
+      const err = await once(clicker, 'error');
+      expect(err.message).to.equal('Unauthorized: Invalid show client token');
     });
 
     it('forwards screenshots from show client to clickers when enabled', async () => {

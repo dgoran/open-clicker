@@ -43,12 +43,32 @@ Tagged releases automatically upload executables to the Releases page. Other bui
 
 ## Features
 
-- **No Node.js Required**: Runs on any Windows machine without installing Node.js or npm
-- **Simple GUI**: Easy-to-use interface for connecting to your session
+- **No Node.js Required**: Runs on any Windows, macOS, or Linux machine without installing Node.js or npm
+- **Paste the Cue Link**: Paste the cue link straight from the producer dashboard and the app fills in both the server and the session code; a bare 6-character code also works
 - **Target App Selection**: Choose to control PowerPoint, Keynote, or any focused window
 - **Real Keyboard Injection**: Uses system-level keyboard simulation to control PowerPoint, browser slides, PDF viewers, etc.
-- **Activity Log**: See every next/prev command as it happens
-- **Reconnection**: Automatically attempts to reconnect if the connection drops
+- **Manual Arrows**: Advance or go back straight from the app, without touching a phone
+- **Screen Casting**: Send screenshots of a chosen monitor to the presenters' clickers, with a resolution slider and a live bandwidth readout
+- **Speaker Notes**: Read the current slide's notes out of PowerPoint or Keynote and push them to the presenters' phones
+- **Activity Log**: See every next/prev command, feature change, and error as it happens
+- **Resilient Reconnection**: Retries indefinitely and rejoins automatically, so a server restart or network blip does not end your show
+
+### Screen casting and speaker notes
+
+Both are opt-in on **both** ends. The producer enables the feature for the session
+(Feature Settings on the producer dashboard), and you tick the matching box in the app.
+Until the producer enables it, the checkbox stays disabled and tells you so.
+
+- **Screen casting** needs Screen Recording permission on macOS
+  (System Settings > Privacy & Security > Screen Recording). Frames are sent every 2
+  seconds as JPEG; pick the resolution with the quality slider and watch the measured
+  bandwidth underneath.
+- **Speaker notes** require PowerPoint or Keynote to be running with a presentation
+  open. Notes are read every 1.5 seconds and only sent when they change. This is not
+  available on Linux, which has no PowerPoint or Keynote automation.
+
+Key injection is optional: if `robotjs` fails to load, the app still connects and works
+as a manual clicker, screen caster, and speaker-notes bridge.
 
 ## Usage
 

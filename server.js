@@ -109,6 +109,7 @@ const sessions = new Map();
 const DEFAULT_FEATURES = {
   screenshotEnabled: false,
   messagesEnabled: false,
+  speakerNotesEnabled: false,
   laserPointerEnabled: false,
   voiceControlEnabled: false,
   cueBeepsEnabled: false
@@ -789,6 +790,27 @@ io.on('connection', (socket) => {
         io.to(clickerId).emit('screenshot-updated', { screenshot });
       }
     }
+  });
+
+  // Speaker notes pushed from the show machine (read out of PowerPoint or
+  // Keynote) into the same notes channel the presenters already display.
+  socket.on('set-show-notes', ({ code, token, notes }) => {
+    const session = getSession(code);
+    if (!session) return;
+
+    if (session.showClients.get(socket.id) !== token) {
+      return fail('Unauthorized: Invalid show client token');
+    }
+    if (!session.features.speakerNotesEnabled) {
+      return;
+    }
+    if (session.notes === notes) {
+      return;
+    }
+
+    session.notes = notes;
+    persistSession(session);
+    io.to(code).emit('notes-changed', { notes });
   });
 
   socket.on('send-message', ({ code, token, targetId, message }) => {
