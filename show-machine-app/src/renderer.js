@@ -98,6 +98,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     notesHint.textContent = 'Speaker notes require PowerPoint or Keynote (not available on Linux).';
   }
 
+  // Restoring the checkboxes is not enough: the main process starts with both
+  // features off, so push the restored preferences through as well.
+  pushCapturePrefs();
+  window.electronAPI.setNotesForwarding({ enabled: notesToggle.checked });
+
   refreshFeatureHints();
   loadScreens();
   log(`Open Clicker Show Machine ready (${platform})`, 'success');

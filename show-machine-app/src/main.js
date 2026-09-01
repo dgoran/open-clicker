@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, desktopCapturer, systemPreferences } = requ
 const path = require('path');
 const fs = require('fs');
 const { io } = require('socket.io-client');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const crypto = require('crypto');
 
 let mainWindow;
@@ -28,7 +28,9 @@ let lastSendAt = 0;
 // after anything changes, then idle back down to keep CPU low on a static
 // slide.
 const CAPTURE_FAST_GAP_MS = 80;
-const CAPTURE_IDLE_GAP_MS = 700;
+// Idle polling only exists to catch slides advanced inside PowerPoint itself;
+// clicks wake the fast loop directly, so this can stay slow and unobtrusive.
+const CAPTURE_IDLE_GAP_MS = 3000;
 const ACTIVITY_WINDOW_MS = 4000;
 const JPEG_QUALITY = 60;
 
@@ -229,8 +231,6 @@ async function captureAndSend() {
     }
     lastFrameHash = hash;
     lastCaptureBytes = jpeg.length;
-    // A changed frame means the slide moved; stay in fast mode.
-    markActivity();
 
     socket.emit('screenshot-upload', {
       code: connection.sessionCode,
@@ -306,10 +306,19 @@ function syncCapture() {
 
 // Reads the current slide's speaker notes out of the presentation app so the
 // remote presenter can read them on their phone while presenting.
-function runScript(command) {
+// execFile, not exec: a multi-line script passed through a shell has its
+// newlines mangled into literal backslash-n, which osascript rejects.
+// Returns {ok, text} or {ok: false, error} so failures can be reported
+// instead of silently looking like "no notes".
+function runScript(file, args) {
   return new Promise((resolve) => {
-    exec(command, { timeout: 4000, maxBuffer: 1024 * 1024 }, (error, stdout) => {
-      resolve(error ? null : stdout.trim());
+    execFile(file, args, { timeout: 5000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) {
+        const detail = (stderr || error.message || '').split('\n')[0].trim();
+        resolve({ ok: false, error: detail || 'script failed' });
+        return;
+      }
+      resolve({ ok: true, text: stdout.trim() });
     });
   });
 }
@@ -323,25 +332,42 @@ function readSpeakerNotes(targetApp) {
         'tell front document to return presenter notes of current slide',
         'end tell'
       ].join('\n');
-      return runScript(`osascript -e ${JSON.stringify(script)}`);
+      return runScript('osascript', ['-e', script]);
     }
 
+    // The notes page has no text frame of its own: the text sits in one of its
+    // shapes (the slide image and the slide number are shapes too). Scan them
+    // and take the longest non-numeric string, which skips the slide number.
     const script = [
       'tell application "Microsoft PowerPoint"',
       'if not (exists active presentation) then return ""',
-      'set slideIndex to 0',
+      'set n to 0',
       'try',
-      'set slideIndex to slide index of slide of slide show view of slide show window 1',
+      'set n to slide index of slide of slide show view of slide show window 1',
       'on error',
       'try',
-      'set slideIndex to slide index of slide of view of document window 1',
+      'set n to slide index of slide of view of document window 1',
       'end try',
       'end try',
-      'if slideIndex is 0 then return ""',
-      'return content of text range of text frame of notes page of slide slideIndex of active presentation',
+      'if n is 0 then return ""',
+      'set theNotes to ""',
+      'set shapeCount to count of shapes of notes page of slide n of active presentation',
+      'repeat with i from 1 to shapeCount',
+      'try',
+      'set t to content of text range of text frame of shape i of notes page of slide n of active presentation',
+      'if t is not missing value and t is not "" then',
+      'try',
+      'set numCheck to t as number',
+      'on error',
+      'if (length of t) > (length of theNotes) then set theNotes to t',
+      'end try',
+      'end if',
+      'end try',
+      'end repeat',
+      'return theNotes',
       'end tell'
     ].join('\n');
-    return runScript(`osascript -e ${JSON.stringify(script)}`);
+    return runScript('osascript', ['-e', script]);
   }
 
   if (process.platform === 'win32') {
@@ -365,16 +391,17 @@ function readSpeakerNotes(targetApp) {
       ''
     `.trim();
     const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
-    return runScript(`powershell -NoProfile -EncodedCommand ${encoded}`);
+    return runScript('powershell', ['-NoProfile', '-EncodedCommand', encoded]);
   }
 
   // Linux has no PowerPoint/Keynote automation surface.
-  return Promise.resolve(null);
+  return Promise.resolve({ ok: false, error: 'not supported on this platform' });
 }
 
 let notesTimer = null;
 let notesPrefs = { enabled: false };
 let lastSentNotes = null;
+let lastNotesError = null;
 
 const NOTES_FAST_GAP_MS = 100;
 const NOTES_IDLE_GAP_MS = 900;
@@ -386,8 +413,21 @@ function shouldSendNotes() {
 async function pollSpeakerNotes() {
   if (!socket || !socket.connected || !showToken) return;
 
-  const notes = await readSpeakerNotes(currentTargetApp);
-  if (notes === null || notes === lastSentNotes) return;
+  const result = await readSpeakerNotes(currentTargetApp);
+
+  if (!result.ok) {
+    // Report the first failure (and any new one) rather than looking like a
+    // deck with no notes.
+    if (result.error !== lastNotesError) {
+      lastNotesError = result.error;
+      send('error', { message: `Could not read speaker notes: ${result.error}` });
+    }
+    return;
+  }
+  lastNotesError = null;
+
+  const notes = result.text;
+  if (notes === lastSentNotes) return;
 
   lastSentNotes = notes;
   // Notes changed, so the deck moved; keep both loops in fast mode.
@@ -415,6 +455,7 @@ function startNotes() {
     return;
   }
   lastSentNotes = null;
+  lastNotesError = null;
   markActivity();
   notesTimer = true;
   pollSpeakerNotes().then(() => {

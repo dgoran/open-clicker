@@ -5,7 +5,11 @@
       "name": "open-clicker",
       "runtimeExecutable": "node",
       "runtimeArgs": ["server.js"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": false,
+      "env": {
+        "SESSION_SECRET": "dev-verify-secret"
+      }
     }
   ]
 }

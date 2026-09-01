@@ -317,6 +317,11 @@
       justify-content: center;
       align-items: center;
     }
+    .screenshot-empty {
+      color: #6b6f7d;
+      font-size: 12px;
+      text-align: center;
+    }
     .screenshot-container img {
       max-width: 100%;
       max-height: 100%;
@@ -507,7 +512,8 @@
     <div class="screenshot-panel" id="screenshotPanel">
       <div class="screenshot-title">Live Slide Preview</div>
       <div class="screenshot-container">
-        <img id="screenshotImg" src="" alt="Slide preview">
+        <img id="screenshotImg" alt="Slide preview" style="display: none;">
+        <div class="screenshot-empty" id="screenshotEmpty">Waiting for the show machine…</div>
       </div>
     </div>
     
@@ -1054,7 +1060,12 @@
       loader.onload = () => {
         // Drop frames that arrived out of order behind a newer one.
         if (seq !== screenshotSeq) return;
-        document.getElementById('screenshotImg').src = loader.src;
+        const img = document.getElementById('screenshotImg');
+        img.src = loader.src;
+        if (img.style.display === 'none') {
+          img.style.display = '';
+          document.getElementById('screenshotEmpty').style.display = 'none';
+        }
       };
       loader.src = screenshot;
     }
