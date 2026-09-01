@@ -195,13 +195,26 @@
       transform: none;
     }
     .notes {
-      padding: 14px max(16px, env(safe-area-inset-left)) 14px max(16px, env(safe-area-inset-right));
+      padding: 14px max(16px, env(safe-area-inset-left)) 10px max(16px, env(safe-area-inset-right));
       background: #2a2a2a;
       height: 160px;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
       border-top: 2px solid #1a1a1a;
       flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .notes-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .notes-size {
+      flex-shrink: 0;
+      display: flex;
+      gap: 6px;
+      padding-top: 6px;
     }
     .notes-title {
       font-size: 11px;
@@ -371,6 +384,20 @@
       touch-action: manipulation;
     }
     .toggle.on { background: #28a745; }
+    .size-arrow {
+      width: 30px;
+      height: 26px;
+      border-radius: 6px;
+      border: none;
+      background: #3a3d48;
+      color: #b9bcc9;
+      font-size: 10px;
+      line-height: 1;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .size-arrow:active { background: #667eea; color: white; }
+    .size-arrow:disabled { opacity: 0.35; cursor: default; }
     .resize-handle {
       flex-shrink: 0;
       height: 16px;
@@ -491,7 +518,13 @@
     <div class="resize-handle" id="notesResize" title="Drag to resize" style="display: none;"></div>
     <div class="notes" id="notesSection" style="display: none;">
       <div class="notes-title">Speaker Notes</div>
-      <div class="notes-content" id="notesContent"></div>
+      <div class="notes-scroll">
+        <div class="notes-content" id="notesContent"></div>
+      </div>
+      <div class="notes-size">
+        <button class="size-arrow" id="notesSizeDown" onclick="changeNotesSize(-2)" aria-label="Smaller notes text">&#9660;</button>
+        <button class="size-arrow" id="notesSizeUp" onclick="changeNotesSize(2)" aria-label="Larger notes text">&#9650;</button>
+      </div>
     </div>
   </div>
 
@@ -527,6 +560,7 @@
     let features = {};
     let screenshotVisible = false;
     let showNotesPref = localStorage.getItem('oc-show-notes') !== '0';
+    let notesFontPx = parseInt(localStorage.getItem('oc-notes-font'), 10) || 14;
     let wakeLockPref = localStorage.getItem('oc-wake-lock') !== '0';
     let laserActive = false;
     let voiceActive = false;
@@ -781,8 +815,9 @@
       const hasText = !!document.getElementById('notesContent').textContent.trim();
       const visible = features.speakerNotesEnabled ? showNotesPref : hasText;
 
-      notesSection.style.display = visible ? 'block' : 'none';
+      notesSection.style.display = visible ? 'flex' : 'none';
       notesResize.style.display = visible ? 'flex' : 'none';
+      clampPanels();
     }
 
     function updateClock() {
@@ -845,6 +880,21 @@
       document.getElementById('settingsPanel').classList.toggle('open');
     }
 
+    const NOTES_FONT_MIN = 11;
+    const NOTES_FONT_MAX = 32;
+
+    function applyNotesFontSize() {
+      document.getElementById('notesContent').style.fontSize = notesFontPx + 'px';
+      document.getElementById('notesSizeDown').disabled = notesFontPx <= NOTES_FONT_MIN;
+      document.getElementById('notesSizeUp').disabled = notesFontPx >= NOTES_FONT_MAX;
+    }
+
+    function changeNotesSize(step) {
+      notesFontPx = Math.min(NOTES_FONT_MAX, Math.max(NOTES_FONT_MIN, notesFontPx + step));
+      localStorage.setItem('oc-notes-font', notesFontPx);
+      applyNotesFontSize();
+    }
+
     function toggleNotes() {
       showNotesPref = !showNotesPref;
       setToggle('toggle-notes', showNotesPref);
@@ -867,6 +917,34 @@
         }
         wakeLock = null;
       }
+    }
+
+    // The click buttons must always keep this much room, however the
+    // surrounding panels are sized.
+    const CONTROLS_MIN_PX = 140;
+
+    function panelHeight(el) {
+      return el.style.display === 'none' ? 0 : el.getBoundingClientRect().height;
+    }
+
+    // How tall this panel may become given what the other one already takes.
+    function maxHeightFor(panel) {
+      const header = document.getElementById('headerSection');
+      const notes = document.getElementById('notesSection');
+      const other = panel === header ? notes : header;
+      const handles = document.getElementById('headerResize').offsetHeight +
+        (notes.style.display === 'none' ? 0 : document.getElementById('notesResize').offsetHeight);
+      return Math.max(60, window.innerHeight - panelHeight(other) - handles - CONTROLS_MIN_PX);
+    }
+
+    // A size stored on a roomier screen must not starve the buttons here.
+    function clampPanels() {
+      ['notesSection', 'headerSection'].forEach((id) => {
+        const panel = document.getElementById(id);
+        if (!panel.style.height) return;
+        const height = Math.min(parseFloat(panel.style.height), maxHeightFor(panel));
+        panel.style.height = height + 'px';
+      });
     }
 
     // Drag the bar to resize the panel above or below it. The controls sit in
@@ -898,8 +976,7 @@
         if (!dragging) return;
         // Dragging down grows a panel above the handle and shrinks one below.
         const delta = edge === 'below' ? startY - e.clientY : e.clientY - startY;
-        const maxPx = window.innerHeight * 0.6;
-        const height = Math.min(maxPx, Math.max(minPx, startHeight + delta));
+        const height = Math.min(maxHeightFor(panel), Math.max(minPx, startHeight + delta));
         panel.style.height = height + 'px';
         localStorage.setItem(storageKey, Math.round(height));
       });
@@ -1068,6 +1145,10 @@
 
     setToggle('toggle-notes', showNotesPref);
     setToggle('toggle-wake', wakeLockPref);
+    applyNotesFontSize();
+    clampPanels();
+    window.addEventListener('resize', clampPanels);
+    window.addEventListener('orientationchange', clampPanels);
 
     // Auto-join if code is in URL
     const urlParams = new URLSearchParams(window.location.search);
