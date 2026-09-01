@@ -450,7 +450,7 @@
         </div>
         <div class="header-actions">
           <a class="button secondary" href="/control-center.html">&larr; Control Center</a>
-          <button class="button danger" onclick="endSession()">End Session</button>
+          <button class="button danger" onclick="endSession(this)">End Session</button>
           <button class="button secondary" onclick="logout()">Logout</button>
         </div>
       </header>
@@ -732,9 +732,26 @@
       }
     }
 
-    async function endSession() {
+    // Inline confirmation: native dialogs are suppressed in some embedded
+    // browsers, where confirm() silently returns false and the button looks
+    // like it does nothing.
+    async function endSession(btn) {
       if (!sessionCode) return;
-      if (!confirm(`End session ${sessionCode}? Everyone connected will be disconnected.`)) return;
+
+      if (btn && btn.dataset.armed !== 'yes') {
+        const original = btn.dataset.originalLabel || btn.textContent;
+        btn.dataset.originalLabel = original;
+        btn.dataset.armed = 'yes';
+        btn.textContent = 'Confirm end?';
+        setTimeout(() => {
+          if (btn.dataset.armed === 'yes') {
+            btn.dataset.armed = '';
+            btn.textContent = original;
+          }
+        }, 6000);
+        return;
+      }
+      if (btn) btn.dataset.armed = '';
 
       try {
         const response = await fetch(`/api/sessions/${sessionCode}`, { method: 'DELETE' });
