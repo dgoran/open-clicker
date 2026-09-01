@@ -7,7 +7,7 @@
     "start": "node server.js",
     "show-client": "node show-machine-client.js",
     "lint": "eslint *.js",
-    "test": "mocha test/**/*.test.js"
+    "test": "mocha test/**/*.test.js --exit"
   },
   "keywords": [
     "clicker",
