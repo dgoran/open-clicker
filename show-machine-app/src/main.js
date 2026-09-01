@@ -21,9 +21,26 @@ let capturePrefs = { enabled: false, screenId: null, height: 400 };
 let lastCaptureBytes = 0;
 let lastFrameHash = null;
 let captureInFlight = false;
+let lastSendAt = 0;
 
-const CAPTURE_INTERVAL_MS = 1000;
+// Capture and notes reads are cheap (~75ms and ~120ms), so the old fixed
+// intervals were nearly all of the delay. Poll tightly for a few seconds
+// after anything changes, then idle back down to keep CPU low on a static
+// slide.
+const CAPTURE_FAST_GAP_MS = 80;
+const CAPTURE_IDLE_GAP_MS = 700;
+const ACTIVITY_WINDOW_MS = 4000;
 const JPEG_QUALITY = 60;
+
+let lastActivityAt = 0;
+
+function markActivity() {
+  lastActivityAt = Date.now();
+}
+
+function recentlyActive() {
+  return Date.now() - lastActivityAt < ACTIVITY_WINDOW_MS;
+}
 
 try {
   robot = require('robotjs');
@@ -212,6 +229,8 @@ async function captureAndSend() {
     }
     lastFrameHash = hash;
     lastCaptureBytes = jpeg.length;
+    // A changed frame means the slide moved; stay in fast mode.
+    markActivity();
 
     socket.emit('screenshot-upload', {
       code: connection.sessionCode,
@@ -219,9 +238,12 @@ async function captureAndSend() {
       screenshot: `data:image/jpeg;base64,${jpeg.toString('base64')}`
     });
 
+    const now = Date.now();
+    const elapsedS = lastSendAt ? Math.max(0.05, (now - lastSendAt) / 1000) : 1;
+    lastSendAt = now;
     send('capture-stats', {
       height,
-      kbPerSecond: Math.round(lastCaptureBytes / 1024 / (CAPTURE_INTERVAL_MS / 1000))
+      kbPerSecond: Math.round(lastCaptureBytes / 1024 / elapsedS)
     });
   } catch (error) {
     console.error('Screen capture error:', error);
@@ -236,6 +258,16 @@ function shouldCapture() {
   return capturePrefs.enabled && !!sessionFeatures.screenshotEnabled && !!showToken;
 }
 
+// Each pass waits for the previous one to finish, so a slow capture paces
+// itself instead of queueing up behind a fixed timer.
+function scheduleCapture() {
+  if (!shouldCapture()) return;
+  captureTimer = setTimeout(async () => {
+    await captureAndSend();
+    if (captureTimer) scheduleCapture();
+  }, recentlyActive() ? CAPTURE_FAST_GAP_MS : CAPTURE_IDLE_GAP_MS);
+}
+
 function startCapture() {
   if (captureTimer) return;
   if (screenCaptureBlocked()) {
@@ -244,15 +276,19 @@ function startCapture() {
     });
     return;
   }
-  captureAndSend();
-  captureTimer = setInterval(captureAndSend, CAPTURE_INTERVAL_MS);
+  markActivity();
+  captureTimer = true;
+  captureAndSend().then(() => {
+    if (captureTimer) scheduleCapture();
+  });
   send('capture-state', { active: true });
 }
 
 function stopCapture() {
   lastFrameHash = null;
+  lastSendAt = 0;
   if (captureTimer) {
-    clearInterval(captureTimer);
+    if (captureTimer !== true) clearTimeout(captureTimer);
     captureTimer = null;
   }
   send('capture-state', { active: false });
@@ -340,7 +376,8 @@ let notesTimer = null;
 let notesPrefs = { enabled: false };
 let lastSentNotes = null;
 
-const NOTES_INTERVAL_MS = 1500;
+const NOTES_FAST_GAP_MS = 100;
+const NOTES_IDLE_GAP_MS = 900;
 
 function shouldSendNotes() {
   return notesPrefs.enabled && !!sessionFeatures.speakerNotesEnabled && !!showToken;
@@ -353,12 +390,22 @@ async function pollSpeakerNotes() {
   if (notes === null || notes === lastSentNotes) return;
 
   lastSentNotes = notes;
+  // Notes changed, so the deck moved; keep both loops in fast mode.
+  markActivity();
   socket.emit('set-show-notes', {
     code: connection.sessionCode,
     token: showToken,
     notes
   });
   send('notes-sent', { notes });
+}
+
+function scheduleNotes() {
+  if (!shouldSendNotes()) return;
+  notesTimer = setTimeout(async () => {
+    await pollSpeakerNotes();
+    if (notesTimer) scheduleNotes();
+  }, recentlyActive() ? NOTES_FAST_GAP_MS : NOTES_IDLE_GAP_MS);
 }
 
 function startNotes() {
@@ -368,14 +415,17 @@ function startNotes() {
     return;
   }
   lastSentNotes = null;
-  pollSpeakerNotes();
-  notesTimer = setInterval(pollSpeakerNotes, NOTES_INTERVAL_MS);
+  markActivity();
+  notesTimer = true;
+  pollSpeakerNotes().then(() => {
+    if (notesTimer) scheduleNotes();
+  });
   send('notes-state', { active: true });
 }
 
 function stopNotes() {
   if (notesTimer) {
-    clearInterval(notesTimer);
+    if (notesTimer !== true) clearTimeout(notesTimer);
     notesTimer = null;
   }
   send('notes-state', { active: false });
@@ -570,6 +620,7 @@ ipcMain.handle('connect', async (event, { serverUrl, sessionCode, targetApp }) =
 
       socket.on('advance', ({ direction }) => {
         console.log(`Advancing: ${direction}`);
+        markActivity();
         injectKey(direction);
       });
 
