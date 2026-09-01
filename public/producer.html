@@ -461,7 +461,7 @@
       cueBeepsEnabled: false
     };
 
-    function checkAuth() {
+    async function checkAuth() {
       try {
         const response = await fetch('/api/me');
         const data = await response.json();
