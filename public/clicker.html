@@ -522,8 +522,8 @@
         <div class="notes-content" id="notesContent"></div>
       </div>
       <div class="notes-size">
-        <button class="size-arrow" id="notesSizeDown" onclick="changeNotesSize(-2)" aria-label="Smaller notes text">&#9660;</button>
-        <button class="size-arrow" id="notesSizeUp" onclick="changeNotesSize(2)" aria-label="Larger notes text">&#9650;</button>
+        <button class="size-arrow" id="notesSizeDown" onclick="changeNotesSize(-1)" aria-label="Smaller notes text">&#9660;</button>
+        <button class="size-arrow" id="notesSizeUp" onclick="changeNotesSize(1)" aria-label="Larger notes text">&#9650;</button>
       </div>
     </div>
   </div>
@@ -881,7 +881,9 @@
     }
 
     const NOTES_FONT_MIN = 11;
-    const NOTES_FONT_MAX = 32;
+    // Large enough to read a confidence monitor across a stage at 4K.
+    const NOTES_FONT_MAX = 300;
+    const NOTES_FONT_RATIO = 1.25;
 
     function applyNotesFontSize() {
       document.getElementById('notesContent').style.fontSize = notesFontPx + 'px';
@@ -889,8 +891,16 @@
       document.getElementById('notesSizeUp').disabled = notesFontPx >= NOTES_FONT_MAX;
     }
 
-    function changeNotesSize(step) {
-      notesFontPx = Math.min(NOTES_FONT_MAX, Math.max(NOTES_FONT_MIN, notesFontPx + step));
+    // Proportional steps, so 11px to 300px is about fifteen taps instead of
+    // a hundred and fifty, and each tap is a similar visual jump.
+    function changeNotesSize(direction) {
+      const scaled = direction > 0
+        ? Math.round(notesFontPx * NOTES_FONT_RATIO)
+        : Math.round(notesFontPx / NOTES_FONT_RATIO);
+      // Guarantee movement at small sizes where rounding could stall.
+      const stepped = scaled === notesFontPx ? notesFontPx + direction : scaled;
+
+      notesFontPx = Math.min(NOTES_FONT_MAX, Math.max(NOTES_FONT_MIN, stepped));
       localStorage.setItem('oc-notes-font', notesFontPx);
       applyNotesFontSize();
     }
