@@ -296,8 +296,9 @@
       background: #2a2a2a;
       border-top: 2px solid #1a1a1a;
       padding: 14px max(16px, env(safe-area-inset-left)) 14px max(16px, env(safe-area-inset-right));
-      max-height: 200px;
+      height: 190px;
       overflow: hidden;
+      flex-direction: column;
       flex-shrink: 0;
       display: none;
     }
@@ -310,14 +311,16 @@
     }
     .screenshot-container {
       width: 100%;
-      height: auto;
+      flex: 1;
+      min-height: 0;
       display: flex;
       justify-content: center;
       align-items: center;
     }
     .screenshot-container img {
       max-width: 100%;
-      max-height: 150px;
+      max-height: 100%;
+      object-fit: contain;
       border-radius: 8px;
       border: 1px solid #444;
     }
@@ -488,7 +491,9 @@
         <button class="toggle" id="toggle-voice" onclick="toggleVoice()">Off</button>
       </div>
       <div class="setting-row" id="row-wake">
-        <span class="setting-label">Keep screen awake</span>
+        <span class="setting-label">Keep screen awake
+          <span class="setting-note" id="wakeNote"></span>
+        </span>
         <button class="toggle on" id="toggle-wake" onclick="toggleWakeLock()">On</button>
       </div>
       <div class="setting-row" id="row-notes">
@@ -506,6 +511,8 @@
       </div>
     </div>
     
+    <div class="resize-handle" id="screenshotResize" title="Drag to resize" style="display: none;"></div>
+
     <div class="controls">
       <button class="control-button prev-button" id="prevBtn" onclick="sendCommand('prev')">
         ← PREV
@@ -566,19 +573,37 @@
     let voiceActive = false;
     let recognition = null;
 
+    // Reports why the screen may still sleep, rather than showing "On" for a
+    // lock the browser never granted.
+    function setWakeNote(text) {
+      const note = document.getElementById('wakeNote');
+      if (note) note.textContent = text;
+    }
+
     async function requestWakeLock() {
       if (!wakeLockPref) return;
-      if ('wakeLock' in navigator) {
-        try {
-          wakeLock = await navigator.wakeLock.request('screen');
-          console.log('Wake lock activated');
-          
-          wakeLock.addEventListener('release', () => {
-            console.log('Wake lock released');
-          });
-        } catch (err) {
-          console.error('Wake lock error:', err);
-        }
+
+      if (!('wakeLock' in navigator)) {
+        // The API is secure-context only, so plain http over a LAN address
+        // has no wake lock at all.
+        setWakeNote(window.isSecureContext
+          ? 'Not supported by this browser'
+          : 'Needs an https:// address');
+        return;
+      }
+
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        setWakeNote('');
+        console.log('Wake lock activated');
+
+        wakeLock.addEventListener('release', () => {
+          console.log('Wake lock released');
+        });
+      } catch (err) {
+        wakeLock = null;
+        setWakeNote('Blocked by the browser');
+        console.error('Wake lock error:', err);
       }
     }
 
@@ -920,6 +945,7 @@
       if (wakeLockPref) {
         requestWakeLock();
       } else if (wakeLock) {
+        setWakeNote('');
         try {
           await wakeLock.release();
         } catch (error) {
@@ -933,23 +959,33 @@
     // surrounding panels are sized.
     const CONTROLS_MIN_PX = 140;
 
+    const RESIZABLE_PANELS = ['headerSection', 'screenshotPanel', 'notesSection'];
+    const RESIZE_HANDLES = ['headerResize', 'screenshotResize', 'notesResize'];
+
     function panelHeight(el) {
       return el.style.display === 'none' ? 0 : el.getBoundingClientRect().height;
     }
 
-    // How tall this panel may become given what the other one already takes.
+    // How tall this panel may become given what everything else already takes.
     function maxHeightFor(panel) {
-      const header = document.getElementById('headerSection');
-      const notes = document.getElementById('notesSection');
-      const other = panel === header ? notes : header;
-      const handles = document.getElementById('headerResize').offsetHeight +
-        (notes.style.display === 'none' ? 0 : document.getElementById('notesResize').offsetHeight);
-      return Math.max(60, window.innerHeight - panelHeight(other) - handles - CONTROLS_MIN_PX);
+      let others = 0;
+      RESIZABLE_PANELS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el !== panel) others += panelHeight(el);
+      });
+
+      let handles = 0;
+      RESIZE_HANDLES.forEach((id) => {
+        const el = document.getElementById(id);
+        handles += el.style.display === 'none' ? 0 : el.offsetHeight;
+      });
+
+      return Math.max(60, window.innerHeight - others - handles - CONTROLS_MIN_PX);
     }
 
     // A size stored on a roomier screen must not starve the buttons here.
     function clampPanels() {
-      ['notesSection', 'headerSection'].forEach((id) => {
+      RESIZABLE_PANELS.forEach((id) => {
         const panel = document.getElementById(id);
         if (!panel.style.height) return;
         const height = Math.min(parseFloat(panel.style.height), maxHeightFor(panel));
@@ -1025,10 +1061,11 @@
 
     function toggleScreenshot() {
       screenshotVisible = !screenshotVisible;
-      const panel = document.getElementById('screenshotPanel');
 
-      panel.style.display = screenshotVisible ? 'block' : 'none';
+      document.getElementById('screenshotPanel').style.display = screenshotVisible ? 'flex' : 'none';
+      document.getElementById('screenshotResize').style.display = screenshotVisible ? 'flex' : 'none';
       setToggle('toggle-screenshot', screenshotVisible);
+      clampPanels();
     }
 
     function toggleLaser() {
@@ -1151,6 +1188,7 @@
 
     // The header grows downward as you drag; the notes panel grows upward.
     makeResizable('headerResize', 'headerSection', 'above', 'oc-header-height', 90);
+    makeResizable('screenshotResize', 'screenshotPanel', 'above', 'oc-preview-height', 80);
     makeResizable('notesResize', 'notesSection', 'below', 'oc-notes-height', 44);
 
     setToggle('toggle-notes', showNotesPref);
