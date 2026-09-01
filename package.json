@@ -1,6 +1,6 @@
 {
   "name": "open-clicker",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "Open-source remote presenter clicker",
   "main": "server.js",
   "scripts": {
