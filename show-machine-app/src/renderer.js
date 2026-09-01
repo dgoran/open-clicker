@@ -78,6 +78,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     keynoteOption.textContent = 'Keynote (macOS only)';
   }
 
+  window.electronAPI.getVersion().then((v) => {
+    document.getElementById('versionStamp').textContent = 'v' + v;
+  });
+
   const prefs = await window.electronAPI.loadPreferences();
   serverInput.value = prefs.serverUrl;
   targetAppSelect.value = prefs.targetApp === 'keynote' && platform !== 'darwin' ? 'focused' : prefs.targetApp;

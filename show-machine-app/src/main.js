@@ -484,6 +484,8 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('get-platform', async () => process.platform);
 
+ipcMain.handle('get-version', async () => app.getVersion());
+
 ipcMain.handle('load-preferences', async () => {
   const prefs = loadPreferences();
   return {

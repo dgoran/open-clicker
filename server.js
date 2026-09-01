@@ -8,6 +8,7 @@ const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const fs = require('fs');
 const Database = require('better-sqlite3');
+const { version: APP_VERSION } = require('./package.json');
 
 const app = express();
 const server = http.createServer(app);
@@ -450,6 +451,11 @@ app.delete('/api/superadmin/users/:userId', requireSuperadmin, (req, res) => {
 app.post('/api/superadmin/logout', (req, res) => {
   req.session.superadmin = false;
   res.json({ success: true });
+});
+
+// Lets the web pages stamp which build they are running.
+app.get('/api/version', (req, res) => {
+  res.json({ version: APP_VERSION });
 });
 
 app.get('/api/session/:code', (req, res) => {

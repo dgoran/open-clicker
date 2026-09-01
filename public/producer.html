@@ -362,6 +362,17 @@
         width: 100%;
       }
     }
+    .version-stamp {
+      position: fixed;
+      bottom: max(6px, env(safe-area-inset-bottom));
+      left: max(8px, env(safe-area-inset-left));
+      font-size: 10px;
+      line-height: 1;
+      color: rgba(0,0,0,0.28);
+      pointer-events: none;
+      user-select: none;
+      z-index: 5;
+    }
   </style>
 </head>
 <body>
@@ -980,6 +991,12 @@
     });
 
     checkAuth();
+
+    fetch('/api/version')
+      .then((r) => r.json())
+      .then(({ version }) => { document.getElementById('versionStamp').textContent = 'v' + version; })
+      .catch(() => {});
   </script>
+  <div class="version-stamp" id="versionStamp"></div>
 </body>
 </html>

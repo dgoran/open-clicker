@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   connect: (serverUrl, sessionCode, targetApp) => ipcRenderer.invoke('connect', { serverUrl, sessionCode, targetApp }),
   disconnect: () => ipcRenderer.invoke('disconnect'),
   getPlatform: () => ipcRenderer.invoke('get-platform'),
+  getVersion: () => ipcRenderer.invoke('get-version'),
   loadPreferences: () => ipcRenderer.invoke('load-preferences'),
   savePreferences: (patch) => ipcRenderer.invoke('save-preferences', patch),
   sendCommand: (direction) => ipcRenderer.invoke('send-command', direction),
