@@ -342,13 +342,14 @@ describe('Socket Protocol (end-to-end)', function () {
   });
 
   describe('producer reclaim', () => {
-    it('keeps the session alive during the grace period and lets the owner reclaim it', async () => {
+    it('keeps the session alive after producer disconnect and lets the owner reclaim it', async () => {
       const { producer, code } = await createSession();
       const { clicker, token } = await joinClicker(code);
 
       producer.disconnect();
       await new Promise((r) => setTimeout(r, 100));
       expect(serverModule.sessions.has(code)).to.equal(true);
+      expect(serverModule.sessions.get(code).producer).to.equal(null);
 
       const reclaimer = connectAuthed();
       await once(reclaimer, 'connect');
@@ -356,7 +357,6 @@ describe('Socket Protocol (end-to-end)', function () {
       const reclaimed = await once(reclaimer, 'producer-reclaimed');
       expect(reclaimed.code).to.equal(code);
       expect(reclaimed.presenters).to.have.lengthOf(1);
-      expect(serverModule.sessions.get(code).producerDisconnectTimer).to.equal(null);
 
       // reclaimer is now the producer and clicks still work
       const advance = once(reclaimer, 'advance');
@@ -387,6 +387,75 @@ describe('Socket Protocol (end-to-end)', function () {
       socket.emit('reclaim-producer', { code });
       const err = await once(socket, 'error');
       expect(err.message).to.equal('Authentication required to reclaim session');
+    });
+  });
+
+  describe('durable sessions', () => {
+    it('survives a server restart via the database', async () => {
+      const { producer, code, token } = await createSession();
+      producer.emit('set-notes', { code, token, notes: 'persisted note' });
+      await once(producer, 'notes-changed');
+
+      // Simulate a restart: drop all in-memory state, then restore from SQLite
+      serverModule.sessions.clear();
+      serverModule.loadPersistedSessions();
+
+      const restored = serverModule.sessions.get(code);
+      expect(restored).to.exist;
+      expect(restored.notes).to.equal('persisted note');
+      expect(restored.producer).to.equal(null);
+
+      // owner can reclaim the restored session and clickers can join it
+      const reclaimer = connectAuthed();
+      await once(reclaimer, 'connect');
+      reclaimer.emit('reclaim-producer', { code });
+      const reclaimed = await once(reclaimer, 'producer-reclaimed');
+      expect(reclaimed.notes).to.equal('persisted note');
+
+      const { clicker, token: clickerToken } = await joinClicker(code);
+      const advance = once(reclaimer, 'advance');
+      clicker.emit('next', { code, token: clickerToken });
+      expect((await advance).direction).to.equal('next');
+    });
+
+    it('lists the owner\'s active sessions via /api/my-sessions', async () => {
+      const { code } = await createSession();
+      await joinClicker(code);
+
+      const res = await request({
+        path: '/api/my-sessions', method: 'GET',
+        headers: { Cookie: authCookie, 'X-Forwarded-Proto': 'https' }
+      });
+      expect(res.statusCode).to.equal(200);
+      const mine = res.body.sessions.find((s) => s.code === code);
+      expect(mine).to.exist;
+      expect(mine.presenterCount).to.equal(1);
+      expect(mine.producerConnected).to.equal(true);
+    });
+
+    it('requires auth for /api/my-sessions', async () => {
+      const res = await request({ path: '/api/my-sessions', method: 'GET' });
+      expect(res.statusCode).to.equal(401);
+    });
+
+    it('lets the owner end a session via DELETE, notifying participants', async () => {
+      const { code } = await createSession();
+      const { clicker } = await joinClicker(code);
+
+      const ended = once(clicker, 'session-ended');
+      const res = await request({
+        path: `/api/sessions/${code}`, method: 'DELETE',
+        headers: { Cookie: authCookie, 'X-Forwarded-Proto': 'https' }
+      });
+      expect(res.statusCode).to.equal(200);
+      await ended;
+      expect(serverModule.sessions.has(code)).to.equal(false);
+    });
+
+    it('rejects DELETE from a non-owner', async () => {
+      const { code } = await createSession();
+      const res = await request({ path: `/api/sessions/${code}`, method: 'DELETE' });
+      expect(res.statusCode).to.equal(401);
     });
   });
 

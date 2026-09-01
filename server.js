@@ -15,7 +15,8 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const SALT_ROUNDS = 10;
-const PRODUCER_GRACE_PERIOD_MS = 30000;
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const ACTIVITY_PERSIST_INTERVAL_MS = 60 * 1000;
 
 function getDbPath() {
   if (process.env.USERS_DB || process.env.DATABASE_PATH) {
@@ -47,7 +48,25 @@ function getDb() {
         email TEXT UNIQUE NOT NULL,
         passwordHash TEXT NOT NULL,
         createdAt INTEGER NOT NULL
-      )
+      );
+      CREATE TABLE IF NOT EXISTS sessions (
+        code TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        producerToken TEXT NOT NULL,
+        locked INTEGER NOT NULL DEFAULT 0,
+        requireName INTEGER NOT NULL DEFAULT 1,
+        notes TEXT NOT NULL DEFAULT '',
+        timer INTEGER NOT NULL DEFAULT 0,
+        timerStartedAt INTEGER,
+        features TEXT NOT NULL DEFAULT '{}',
+        createdAt INTEGER NOT NULL,
+        lastActivityAt INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS login_sessions (
+        sid TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        expiresAt INTEGER NOT NULL
+      );
     `);
     console.log(`Database initialized at ${dbPath}`);
   }
@@ -87,6 +106,100 @@ function getUserCount() {
 
 const sessions = new Map();
 
+const DEFAULT_FEATURES = {
+  screenshotEnabled: false,
+  messagesEnabled: false,
+  laserPointerEnabled: false,
+  voiceControlEnabled: false,
+  cueBeepsEnabled: false
+};
+
+function persistSession(s) {
+  getDb().prepare(`
+    INSERT INTO sessions (code, userId, producerToken, locked, requireName, notes, timer, timerStartedAt, features, createdAt, lastActivityAt)
+    VALUES (@code, @userId, @producerToken, @locked, @requireName, @notes, @timer, @timerStartedAt, @features, @createdAt, @lastActivityAt)
+    ON CONFLICT(code) DO UPDATE SET
+      locked = @locked, requireName = @requireName, notes = @notes,
+      timer = @timer, timerStartedAt = @timerStartedAt, features = @features,
+      lastActivityAt = @lastActivityAt
+  `).run({
+    code: s.code,
+    userId: s.userId,
+    producerToken: s.producerToken,
+    locked: s.locked ? 1 : 0,
+    requireName: s.requireName ? 1 : 0,
+    notes: s.notes,
+    timer: s.timer,
+    timerStartedAt: s.timerStartedAt,
+    features: JSON.stringify(s.features),
+    createdAt: s.createdAt,
+    lastActivityAt: s.lastActivityAt
+  });
+  s.lastPersistedAt = Date.now();
+}
+
+// Records activity in memory; writes through to the DB at most once a minute
+// so rapid clicking doesn't hammer SQLite.
+function touchSession(s) {
+  s.lastActivityAt = Date.now();
+  if (s.lastActivityAt - (s.lastPersistedAt || 0) > ACTIVITY_PERSIST_INTERVAL_MS) {
+    persistSession(s);
+  }
+}
+
+function endSession(code, reason) {
+  sessions.delete(code);
+  getDb().prepare('DELETE FROM sessions WHERE code = ?').run(code);
+  io.to(code).emit('session-ended');
+  console.log(`Session ${code} ended${reason ? ` (${reason})` : ''}`);
+}
+
+// Restores persisted sessions into memory (producer offline, no participants).
+// Called at startup so sessions survive server restarts.
+function loadPersistedSessions() {
+  const cutoff = Date.now() - SESSION_TTL_MS;
+  getDb().prepare('DELETE FROM sessions WHERE lastActivityAt < ?').run(cutoff);
+
+  for (const row of getDb().prepare('SELECT * FROM sessions').all()) {
+    if (sessions.has(row.code)) continue;
+    sessions.set(row.code, {
+      code: row.code,
+      locked: !!row.locked,
+      requireName: !!row.requireName,
+      notes: row.notes,
+      timer: row.timer,
+      timerStartedAt: row.timerStartedAt,
+      producer: null,
+      producerToken: row.producerToken,
+      userId: row.userId,
+      clickers: new Map(),
+      showClients: new Map(),
+      presenters: new Map(),
+      features: { ...DEFAULT_FEATURES, ...JSON.parse(row.features) },
+      screenshot: null,
+      lastScreenshotTime: null,
+      createdAt: row.createdAt,
+      lastActivityAt: row.lastActivityAt,
+      lastPersistedAt: Date.now()
+    });
+  }
+  if (sessions.size > 0) {
+    console.log(`Restored ${sessions.size} session(s) from database`);
+  }
+}
+
+const ttlSweep = setInterval(() => {
+  const cutoff = Date.now() - SESSION_TTL_MS;
+  for (const [code, s] of sessions.entries()) {
+    if (s.lastActivityAt < cutoff) {
+      endSession(code, 'expired after 24h of inactivity');
+    }
+  }
+  getDb().prepare('DELETE FROM sessions WHERE lastActivityAt < ?').run(cutoff);
+  getDb().prepare('DELETE FROM login_sessions WHERE expiresAt < ?').run(Date.now());
+}, 60 * 60 * 1000);
+ttlSweep.unref();
+
 function generateCode() {
   // Generate 6 bytes to ensure at least 6 chars after stripping +/=
   return crypto.randomBytes(6).toString('base64')
@@ -99,7 +212,50 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// SQLite-backed store so logins survive server restarts (the default
+// MemoryStore is wiped with the process). Requires SESSION_SECRET to be set
+// for cookies to stay valid across restarts.
+class SqliteSessionStore extends session.Store {
+  get(sid, callback) {
+    try {
+      const row = getDb().prepare('SELECT data FROM login_sessions WHERE sid = ? AND expiresAt > ?').get(sid, Date.now());
+      callback(null, row ? JSON.parse(row.data) : null);
+    } catch (error) {
+      callback(error);
+    }
+  }
+
+  set(sid, sess, callback) {
+    try {
+      const expiresAt = sess.cookie && sess.cookie.expires
+        ? new Date(sess.cookie.expires).getTime()
+        : Date.now() + 7 * 24 * 60 * 60 * 1000;
+      getDb().prepare(`
+        INSERT INTO login_sessions (sid, data, expiresAt) VALUES (?, ?, ?)
+        ON CONFLICT(sid) DO UPDATE SET data = excluded.data, expiresAt = excluded.expiresAt
+      `).run(sid, JSON.stringify(sess), expiresAt);
+      callback(null);
+    } catch (error) {
+      callback(error);
+    }
+  }
+
+  destroy(sid, callback) {
+    try {
+      getDb().prepare('DELETE FROM login_sessions WHERE sid = ?').run(sid);
+      callback(null);
+    } catch (error) {
+      callback(error);
+    }
+  }
+
+  touch(sid, sess, callback) {
+    this.set(sid, sess, callback);
+  }
+}
+
 const sessionMiddleware = session({
+  store: new SqliteSessionStore(),
   secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,
@@ -263,6 +419,44 @@ app.get('/api/session/:code', (req, res) => {
   res.json({ code: session.code, requireName: session.requireName, locked: session.locked });
 });
 
+app.get('/api/my-sessions', (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const mine = [];
+  for (const s of sessions.values()) {
+    if (s.userId === req.session.userId) {
+      mine.push({
+        code: s.code,
+        locked: s.locked,
+        requireName: s.requireName,
+        createdAt: s.createdAt,
+        lastActivityAt: s.lastActivityAt,
+        presenterCount: s.presenters.size,
+        producerConnected: !!s.producer
+      });
+    }
+  }
+  mine.sort((a, b) => b.lastActivityAt - a.lastActivityAt);
+  res.json({ sessions: mine });
+});
+
+app.delete('/api/sessions/:code', (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  const code = req.params.code.toUpperCase();
+  const session = sessions.get(code);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  if (session.userId !== req.session.userId) {
+    return res.status(403).json({ error: 'Unauthorized: You did not create this session' });
+  }
+  endSession(code, 'ended by producer');
+  res.json({ success: true });
+});
+
 function presenterList(session) {
   return Array.from(session.presenters.entries()).map(([id, data]) => ({
     id,
@@ -306,6 +500,7 @@ io.on('connection', (socket) => {
 
     const code = generateCode();
     const producerToken = generateToken();
+    const now = Date.now();
     const session = {
       code,
       locked: false,
@@ -316,21 +511,17 @@ io.on('connection', (socket) => {
       producer: socket.id,
       producerToken,
       userId,
-      producerDisconnectTimer: null,
       clickers: new Map(),
       showClients: new Map(),
       presenters: new Map(),
-      features: {
-        screenshotEnabled: false,
-        messagesEnabled: false,
-        laserPointerEnabled: false,
-        voiceControlEnabled: false,
-        cueBeepsEnabled: false
-      },
+      features: { ...DEFAULT_FEATURES },
       screenshot: null,
-      lastScreenshotTime: null
+      lastScreenshotTime: null,
+      createdAt: now,
+      lastActivityAt: now
     };
     sessions.set(code, session);
+    persistSession(session);
     socket.join(code);
     socket.emit('session-created', { code, token: producerToken, requireName: true, features: session.features });
     console.log('Session created:', code, 'by user:', userId);
@@ -390,13 +581,9 @@ io.on('connection', (socket) => {
       return fail('Unauthorized: You did not create this session');
     }
 
-    if (session.producerDisconnectTimer) {
-      clearTimeout(session.producerDisconnectTimer);
-      session.producerDisconnectTimer = null;
-    }
-
     session.producer = socket.id;
     socket.join(code);
+    touchSession(session);
 
     socket.emit('producer-reclaimed', {
       code: session.code,
@@ -417,6 +604,7 @@ io.on('connection', (socket) => {
     const session = producerSession(code, token);
     if (!session) return;
     session.locked = locked;
+    persistSession(session);
     io.to(code).emit('lock-changed', { locked });
     console.log(`Session ${code} lock changed:`, locked);
   });
@@ -425,6 +613,7 @@ io.on('connection', (socket) => {
     const session = producerSession(code, token);
     if (!session) return;
     session.notes = notes;
+    persistSession(session);
     io.to(code).emit('notes-changed', { notes });
   });
 
@@ -433,6 +622,7 @@ io.on('connection', (socket) => {
     if (!session) return;
     session.timer = minutes * 60;
     session.timerStartedAt = Date.now();
+    persistSession(session);
     io.to(code).emit('timer-changed', { timer: session.timer, timerStartedAt: session.timerStartedAt });
     console.log(`Session ${code} timer set to ${minutes} minutes`);
   });
@@ -441,6 +631,7 @@ io.on('connection', (socket) => {
     const session = producerSession(code, token);
     if (!session) return;
     session.timerStartedAt = Date.now();
+    persistSession(session);
     io.to(code).emit('timer-changed', { timer: session.timer, timerStartedAt: session.timerStartedAt });
   });
 
@@ -462,6 +653,7 @@ io.on('connection', (socket) => {
         return fail('Your click access is suspended');
       }
     }
+    touchSession(session);
     io.to(code).emit('advance', { direction });
     console.log(`Session ${code}: ${direction}`);
   }
@@ -489,6 +681,7 @@ io.on('connection', (socket) => {
     const session = producerSession(code, token);
     if (!session) return;
     session.requireName = requireName;
+    persistSession(session);
     socket.emit('require-name-updated', { requireName });
     console.log(`Session ${code}: requireName set to ${requireName}`);
   });
@@ -534,6 +727,7 @@ io.on('connection', (socket) => {
     const session = producerSession(code, token);
     if (!session) return;
     session.features = { ...session.features, ...features };
+    persistSession(session);
     io.to(code).emit('features-changed', { features: session.features });
     console.log(`Session ${code}: features updated`, features);
   });
@@ -595,17 +789,11 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     for (const [code, session] of sessions.entries()) {
       if (session.producer === socket.id) {
-        if (session.producerDisconnectTimer) {
-          clearTimeout(session.producerDisconnectTimer);
-        }
-        session.producerDisconnectTimer = setTimeout(() => {
-          if (sessions.has(code)) {
-            sessions.delete(code);
-            io.to(code).emit('session-ended');
-            console.log('Session ended after grace period:', code);
-          }
-        }, PRODUCER_GRACE_PERIOD_MS);
-        console.log(`Producer disconnected from session ${code}, grace period active`);
+        // Sessions are durable: the producer going away (navigation, logout,
+        // network drop) leaves the session running until it is explicitly
+        // ended or expires after SESSION_TTL_MS of inactivity.
+        session.producer = null;
+        console.log(`Producer disconnected from session ${code}; session stays active`);
       } else {
         const wasPresenter = session.presenters.has(socket.id);
         session.clickers.delete(socket.id);
@@ -636,6 +824,8 @@ if (require.main === module) {
   });
 }
 
+loadPersistedSessions();
+
 module.exports = {
   getUser,
   getAllUsers,
@@ -644,6 +834,7 @@ module.exports = {
   getUserCount,
   closeDatabase,
   getDbPath,
+  loadPersistedSessions,
   app,
   server,
   io,

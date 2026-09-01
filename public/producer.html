@@ -72,6 +72,23 @@
       margin: 0;
       flex: 0 0 auto;
     }
+    .share-qr {
+      text-align: center;
+      margin-top: 16px;
+    }
+    .share-qr svg {
+      width: 160px;
+      height: 160px;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      background: white;
+      padding: 8px;
+    }
+    .share-qr p {
+      color: #666;
+      font-size: 13px;
+      margin-top: 6px;
+    }
     .card {
       background: white;
       border-radius: 12px;
@@ -392,11 +409,17 @@
             <span class="share-link-label">Presenter link</span>
             <input type="text" class="share-link-input" id="presenterLink" readonly onclick="this.select()">
             <button class="button share-copy" onclick="copyShareLink('presenterLink', this)">Copy</button>
+            <button class="button share-copy secondary" onclick="openShareLink('presenterLink')">Open</button>
           </div>
           <div class="share-link-row">
             <span class="share-link-label">Cue link</span>
             <input type="text" class="share-link-input" id="cueLink" readonly onclick="this.select()">
             <button class="button share-copy" onclick="copyShareLink('cueLink', this)">Copy</button>
+            <button class="button share-copy secondary" onclick="openShareLink('cueLink')">Open</button>
+          </div>
+          <div class="share-qr">
+            <div id="presenterQr"></div>
+            <p>Scan to join as presenter</p>
           </div>
         </div>
         <button class="button secondary" onclick="endSessionAndLogout()" style="margin-top: 12px;">End Session & Logout</button>
@@ -492,6 +515,7 @@
     </div>
   </div>
 
+  <script src="/vendor/qrcode.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
@@ -545,6 +569,16 @@
       const base = window.location.origin;
       document.getElementById('presenterLink').value = `${base}/clicker.html?code=${sessionCode}`;
       document.getElementById('cueLink').value = `${base}/show.html?code=${sessionCode}`;
+
+      const qr = qrcode(0, 'M');
+      qr.addData(`${base}/clicker.html?code=${sessionCode}`);
+      qr.make();
+      document.getElementById('presenterQr').innerHTML = qr.createSvgTag(4, 0);
+    }
+
+    function openShareLink(inputId) {
+      const url = document.getElementById(inputId).value;
+      if (url) window.open(url, '_blank');
     }
 
     async function copyShareLink(inputId, button) {
@@ -662,6 +696,11 @@
 
     async function endSessionAndLogout() {
       if (confirm('Are you sure you want to end this session and logout?')) {
+        try {
+          await fetch(`/api/sessions/${sessionCode}`, { method: 'DELETE' });
+        } catch (error) {
+          console.error('End session error:', error);
+        }
         socket.disconnect();
         await logout();
       }

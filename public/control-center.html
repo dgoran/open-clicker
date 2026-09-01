@@ -191,7 +191,7 @@
       </div>
 
       <div class="active-sessions" id="activeSessionsCard" style="display: none;">
-        <h2>Active Session</h2>
+        <h2>Your Active Sessions</h2>
         <div class="session-list" id="sessionsList"></div>
       </div>
     </div>
@@ -213,6 +213,7 @@
           userId = data.userId;
           userEmail = data.email;
           showControlCenter();
+          loadSessions();
         } else {
           showAuthScreen();
         }
@@ -237,44 +238,60 @@
       socket.emit('create-session');
     }
 
-    socket.on('session-created', ({ code, token, requireName, features }) => {
-      activeSession = { code, token, requireName, features };
-      
-      document.getElementById('welcomeSection').style.display = 'none';
-      document.getElementById('activeSessionsCard').style.display = 'block';
-      
-      renderActiveSession();
-      
+    socket.on('session-created', ({ code }) => {
       window.location.href = `/producer.html?code=${code}`;
     });
 
-    function renderActiveSession() {
-      if (!activeSession) return;
-      
-      const shareUrl = `${window.location.origin}/clicker.html?code=${activeSession.code}`;
-      
-      document.getElementById('sessionsList').innerHTML = `
-        <div class="session-card">
-          <div class="session-code">${activeSession.code}</div>
-          <div class="session-info">Share this code with presenters to join the session</div>
-          <div class="share-url">
-            <input type="text" id="shareUrl" value="${shareUrl}" readonly>
-            <button class="button copy-btn" onclick="copyShareUrl()">Copy Link</button>
-          </div>
-          <div class="session-actions">
-            <button class="button" onclick="openProducer()">Open Producer Controls</button>
-            <button class="button secondary" onclick="endSession()">End Session</button>
-          </div>
-        </div>
-      `;
+    async function loadSessions() {
+      try {
+        const response = await fetch('/api/my-sessions');
+        const data = await response.json();
+        renderSessions(data.sessions || []);
+      } catch (error) {
+        console.error('Load sessions error:', error);
+      }
     }
 
-    function copyShareUrl() {
-      const input = document.getElementById('shareUrl');
+    function timeAgo(ts) {
+      const mins = Math.round((Date.now() - ts) / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return `${mins} min ago`;
+      const hours = Math.round(mins / 60);
+      return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+    }
+
+    function renderSessions(sessionList) {
+      const card = document.getElementById('activeSessionsCard');
+      if (sessionList.length === 0) {
+        card.style.display = 'none';
+        return;
+      }
+      card.style.display = 'block';
+
+      document.getElementById('sessionsList').innerHTML = sessionList.map((s) => {
+        const shareUrl = `${window.location.origin}/clicker.html?code=${s.code}`;
+        const presenters = s.presenterCount === 1 ? '1 presenter' : `${s.presenterCount} presenters`;
+        return `
+        <div class="session-card">
+          <div class="session-code">${s.code}</div>
+          <div class="session-info">${presenters} connected · last activity ${timeAgo(s.lastActivityAt)}</div>
+          <div class="share-url">
+            <input type="text" value="${shareUrl}" readonly onclick="this.select()">
+            <button class="button copy-btn" onclick="copyShareUrl(this)">Copy Link</button>
+          </div>
+          <div class="session-actions">
+            <a class="button" href="/producer.html?code=${s.code}">Open Producer Controls</a>
+            <button class="button secondary" onclick="endSession('${s.code}')">End Session</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function copyShareUrl(btn) {
+      const input = btn.parentElement.querySelector('input');
       input.select();
       document.execCommand('copy');
-      
-      const btn = event.target;
+
       const originalText = btn.textContent;
       btn.textContent = 'Copied!';
       setTimeout(() => {
@@ -282,16 +299,14 @@
       }, 2000);
     }
 
-    function openProducer() {
-      window.location.href = `/producer.html?code=${activeSession.code}`;
-    }
-
-    function endSession() {
-      if (confirm('Are you sure you want to end this session?')) {
-        socket.disconnect();
-        activeSession = null;
-        document.getElementById('welcomeSection').style.display = 'block';
-        document.getElementById('activeSessionsCard').style.display = 'none';
+    async function endSession(code) {
+      if (confirm(`Are you sure you want to end session ${code}?`)) {
+        try {
+          await fetch(`/api/sessions/${code}`, { method: 'DELETE' });
+        } catch (error) {
+          console.error('End session error:', error);
+        }
+        loadSessions();
       }
     }
 

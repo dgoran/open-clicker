@@ -7,7 +7,6 @@ const bcrypt = require('bcrypt');
 describe('Session Cookie with Proxy', () => {
   let serverModule;
   let testDbPath;
-  const baseURL = 'http://localhost:3001';
   
   before(() => {
     testDbPath = path.join(__dirname, '..', 'test-session-cookie.sqlite');
@@ -51,13 +50,17 @@ describe('Session Cookie with Proxy', () => {
   describe('Session Cookie Behavior Behind Proxy', () => {
     let serverStarted = false;
 
+    let port = null;
+
     before((done) => {
       if (!serverModule.server.listening) {
-        serverModule.server.listen(3001, () => {
+        serverModule.server.listen(0, () => {
           serverStarted = true;
+          port = serverModule.server.address().port;
           done();
         });
       } else {
+        port = serverModule.server.address().port;
         done();
       }
     });
@@ -74,7 +77,7 @@ describe('Session Cookie with Proxy', () => {
       return new Promise((resolve, reject) => {
         const reqOptions = {
           hostname: 'localhost',
-          port: 3001,
+          port,
           ...options,
           headers: {
             ...options.headers

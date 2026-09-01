@@ -7,7 +7,6 @@ const bcrypt = require('bcrypt');
 describe('Superadmin with SQLite', () => {
   let serverModule;
   let testDbPath;
-  const baseURL = 'http://localhost:3000';
   
   before(() => {
     testDbPath = path.join(__dirname, '..', 'test-users.sqlite');
@@ -143,14 +142,17 @@ describe('Superadmin with SQLite', () => {
   describe('HTTP Superadmin Authentication', () => {
     let cookies = '';
     let serverStarted = false;
+    let port = null;
 
     before((done) => {
       if (!serverModule.server.listening) {
-        serverModule.server.listen(3000, () => {
+        serverModule.server.listen(0, () => {
           serverStarted = true;
+          port = serverModule.server.address().port;
           done();
         });
       } else {
+        port = serverModule.server.address().port;
         done();
       }
     });
@@ -167,7 +169,7 @@ describe('Superadmin with SQLite', () => {
       return new Promise((resolve, reject) => {
         const reqOptions = {
           hostname: 'localhost',
-          port: 3000,
+          port,
           ...options,
           headers: {
             ...options.headers,
