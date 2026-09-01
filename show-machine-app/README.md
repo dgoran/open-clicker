@@ -14,21 +14,21 @@ Available for:
 ### Windows
 
 Two versions are available:
-- **Portable**: `Open Clicker Show Machine-1.0.0-portable.exe` - No installation required, just run it
-- **Installer**: `Open Clicker Show Machine Setup 1.0.0.exe` - Traditional Windows installer with Start Menu shortcut
+- **Portable**: `Open Clicker Show Machine-1.7.0-portable.exe` - No installation required, just run it
+- **Installer**: `Open Clicker Show Machine Setup 1.7.0.exe` - Traditional Windows installer with Start Menu shortcut
 
 ### macOS
 
 Two versions are available:
-- **DMG (Apple Silicon)**: `Open Clicker Show Machine-1.0.0-arm64.dmg` - Disk image for M1/M2/M3/M4 Macs
-- **ZIP (Apple Silicon)**: `Open Clicker Show Machine-1.0.0-arm64-mac.zip` - Zip archive for M1/M2/M3/M4 Macs
+- **DMG (Apple Silicon)**: `Open Clicker Show Machine-1.7.0-arm64.dmg` - Disk image for M1/M2/M3/M4 Macs
+- **ZIP (Apple Silicon)**: `Open Clicker Show Machine-1.7.0-arm64-mac.zip` - Zip archive for M1/M2/M3/M4 Macs
 
 **Note**: macOS apps are **unsigned** and will trigger Gatekeeper warnings. See [macOS Security](#macos-security) below.
 
 ### Linux
 
 One version is available:
-- **AppImage (x64)**: `Open Clicker Show Machine-1.0.0.AppImage` - Portable Linux application
+- **AppImage (x64)**: `Open Clicker Show Machine-1.7.0.AppImage` - Portable Linux application
 
 **Note**: Requires X11 and libxtst. Most desktop Linux distributions include these by default.
 
@@ -110,7 +110,7 @@ The show machine app lets you choose which application to control:
 
 On the Windows computer running your presentation:
 
-1. Download and run `Open Clicker Show Machine-1.0.0-portable.exe`
+1. Download and run `Open Clicker Show Machine-1.7.0-portable.exe`
 2. If Windows SmartScreen appears, click "More info" → "Run anyway" (see [Windows Security](#windows-security))
 3. Enter the **Server URL** (e.g., `http://192.168.1.100:3000` or `http://localhost:3000`)
 4. Enter the **Session Code** from the producer
@@ -239,8 +239,8 @@ npm run build:mac
 ```
 
 Built files will be in `show-machine-app/dist/`:
-- `Open Clicker Show Machine-1.0.0-arm64.dmg` (Apple Silicon)
-- `Open Clicker Show Machine-1.0.0-arm64-mac.zip` (Apple Silicon)
+- `Open Clicker Show Machine-1.7.0-arm64.dmg` (Apple Silicon)
+- `Open Clicker Show Machine-1.7.0-arm64-mac.zip` (Apple Silicon)
 
 #### Linux
 
@@ -251,7 +251,7 @@ npm run build:linux
 ```
 
 Built file will be in `show-machine-app/dist/`:
-- `Open Clicker Show Machine-1.0.0.AppImage` (x64)
+- `Open Clicker Show Machine-1.7.0.AppImage` (x64)
 
 ### Manual Build
 
@@ -288,8 +288,8 @@ Built file will be in `show-machine-app/dist/`:
 4. **Find Your Executable**
 
    Built files are in `show-machine-app/dist/`:
-   - Portable: `Open Clicker Show Machine-1.0.0-portable.exe`
-   - Installer: `Open Clicker Show Machine Setup 1.0.0.exe`
+   - Portable: `Open Clicker Show Machine-1.7.0-portable.exe`
+   - Installer: `Open Clicker Show Machine Setup 1.7.0.exe`
 
 #### macOS
 
@@ -318,8 +318,8 @@ Built file will be in `show-machine-app/dist/`:
 4. **Find Your App**
 
    Built files are in `show-machine-app/dist/`:
-   - `Open Clicker Show Machine-1.0.0-arm64.dmg` (Apple Silicon)
-   - `Open Clicker Show Machine-1.0.0-arm64-mac.zip` (Apple Silicon)
+   - `Open Clicker Show Machine-1.7.0-arm64.dmg` (Apple Silicon)
+   - `Open Clicker Show Machine-1.7.0-arm64-mac.zip` (Apple Silicon)
 
 #### Linux
 
@@ -356,7 +356,7 @@ Built file will be in `show-machine-app/dist/`:
 4. **Find Your App**
 
    Built file is in `show-machine-app/dist/`:
-   - `Open Clicker Show Machine-1.0.0.AppImage` (x64)
+   - `Open Clicker Show Machine-1.7.0.AppImage` (x64)
 
 ### Full Documentation
 
