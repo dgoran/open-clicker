@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { io } = require('socket.io-client');
 const { exec } = require('child_process');
+const crypto = require('crypto');
 
 let mainWindow;
 let socket;
@@ -18,8 +19,10 @@ let sessionFeatures = {};
 let captureTimer = null;
 let capturePrefs = { enabled: false, screenId: null, height: 400 };
 let lastCaptureBytes = 0;
+let lastFrameHash = null;
+let captureInFlight = false;
 
-const CAPTURE_INTERVAL_MS = 2000;
+const CAPTURE_INTERVAL_MS = 1000;
 const JPEG_QUALITY = 60;
 
 try {
@@ -188,6 +191,9 @@ async function listScreens() {
 
 async function captureAndSend() {
   if (!socket || !socket.connected || !showToken) return;
+  // A capture slower than the interval must not stack up behind itself.
+  if (captureInFlight) return;
+  captureInFlight = true;
 
   try {
     const height = capturePrefs.height;
@@ -199,6 +205,12 @@ async function captureAndSend() {
 
     const source = sources.find((s) => s.id === capturePrefs.screenId) || sources[0];
     const jpeg = source.thumbnail.toJPEG(JPEG_QUALITY);
+
+    const hash = crypto.createHash('sha1').update(jpeg).digest('hex');
+    if (hash === lastFrameHash) {
+      return;
+    }
+    lastFrameHash = hash;
     lastCaptureBytes = jpeg.length;
 
     socket.emit('screenshot-upload', {
@@ -215,6 +227,8 @@ async function captureAndSend() {
     console.error('Screen capture error:', error);
     send('error', { message: `Screen capture error: ${error.message}` });
     stopCapture();
+  } finally {
+    captureInFlight = false;
   }
 }
 
@@ -236,6 +250,7 @@ function startCapture() {
 }
 
 function stopCapture() {
+  lastFrameHash = null;
   if (captureTimer) {
     clearInterval(captureTimer);
     captureTimer = null;

@@ -96,6 +96,7 @@
       text-align: center;
       background: #2a2a2a;
       flex-shrink: 0;
+      overflow: hidden;
     }
     .session-info {
       font-size: 12px;
@@ -166,7 +167,7 @@
       justify-content: center;
       user-select: none;
       -webkit-user-select: none;
-      min-height: 120px;
+      min-height: 0;
       touch-action: manipulation;
     }
     .control-button.prev-button {
@@ -196,7 +197,7 @@
     .notes {
       padding: 14px max(16px, env(safe-area-inset-left)) 14px max(16px, env(safe-area-inset-right));
       background: #2a2a2a;
-      max-height: 160px;
+      height: 160px;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       border-top: 2px solid #1a1a1a;
@@ -210,6 +211,7 @@
       font-weight: 600;
     }
     .notes-content {
+      min-height: 21px;
       font-size: 14px;
       line-height: 1.5;
       color: #ccc;
@@ -306,35 +308,87 @@
       border-radius: 8px;
       border: 1px solid #444;
     }
-    .feature-buttons {
-      padding: 12px max(16px, env(safe-area-inset-left)) 12px max(16px, env(safe-area-inset-right));
-      background: #2a2a2a;
+    .header {
+      position: relative;
+    }
+    .settings-cog {
+      position: absolute;
+      top: 10px;
+      right: max(10px, env(safe-area-inset-right));
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: none;
+      background: transparent;
+      color: #bbb;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .settings-cog:active { background: #3a3a3a; }
+    .settings-panel {
+      display: none;
+      background: #23252e;
       border-top: 2px solid #1a1a1a;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+      border-bottom: 2px solid #1a1a1a;
+      padding: 6px max(16px, env(safe-area-inset-left)) 10px max(16px, env(safe-area-inset-right));
       flex-shrink: 0;
     }
-    .feature-button {
-      flex: 1;
-      min-width: 100px;
-      padding: 10px 16px;
+    .settings-panel.open { display: block; }
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #31343f;
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-label {
       font-size: 14px;
-      border-radius: 8px;
-      border: 2px solid #444;
-      background: #1a1a1a;
-      color: white;
-      cursor: pointer;
-      transition: all 0.2s;
+      color: #e2e4ec;
       font-weight: 500;
     }
-    .feature-button:active {
-      transform: scale(0.98);
+    .setting-note {
+      display: block;
+      font-size: 11px;
+      color: #8a8d9e;
+      font-weight: 400;
+      margin-top: 2px;
     }
-    .feature-button.active {
-      background: #667eea;
-      border-color: #667eea;
+    .toggle {
+      flex: 0 0 auto;
+      min-width: 62px;
+      padding: 6px 0;
+      border-radius: 999px;
+      border: none;
+      background: #4a4d5a;
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      touch-action: manipulation;
     }
+    .toggle.on { background: #28a745; }
+    .resize-handle {
+      flex-shrink: 0;
+      height: 16px;
+      background: #23252e;
+      cursor: ns-resize;
+      touch-action: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .resize-handle::after {
+      content: '';
+      width: 44px;
+      height: 4px;
+      border-radius: 2px;
+      background: #565a6b;
+    }
+    .resize-handle:active::after { background: #667eea; }
     .message-modal .modal-content {
       max-height: 80vh;
       overflow-y: auto;
@@ -379,7 +433,8 @@
   </div>
 
   <div id="clicker-screen">
-    <div class="header">
+    <div class="header" id="headerSection">
+      <button class="settings-cog" id="settingsCog" onclick="toggleSettings()" aria-label="Settings">&#9881;</button>
       <div class="session-info">Session</div>
       <div class="session-code" id="sessionCode"></div>
       <div>
@@ -390,11 +445,31 @@
         <div class="timer idle" id="timer">No timer set</div>
       </div>
     </div>
-    
-    <div class="feature-buttons" id="featureButtons" style="display: none;">
-      <button class="feature-button" id="screenshotBtn" onclick="toggleScreenshot()">📸 Screenshot</button>
-      <button class="feature-button" id="laserBtn" onclick="toggleLaser()">🔴 Laser</button>
-      <button class="feature-button" id="voiceBtn" onclick="toggleVoice()">🎤 Voice</button>
+    <div class="resize-handle" id="headerResize" title="Drag to resize"></div>
+
+    <div class="settings-panel" id="settingsPanel">
+      <div class="setting-row" id="row-screenshot">
+        <span class="setting-label">Show screenshot</span>
+        <button class="toggle" id="toggle-screenshot" onclick="toggleScreenshot()">Off</button>
+      </div>
+      <div class="setting-row" id="row-laser">
+        <span class="setting-label">Laser pointer</span>
+        <button class="toggle" id="toggle-laser" onclick="toggleLaser()">Off</button>
+      </div>
+      <div class="setting-row" id="row-voice">
+        <span class="setting-label">Voice control</span>
+        <button class="toggle" id="toggle-voice" onclick="toggleVoice()">Off</button>
+      </div>
+      <div class="setting-row" id="row-wake">
+        <span class="setting-label">Keep screen awake</span>
+        <button class="toggle on" id="toggle-wake" onclick="toggleWakeLock()">On</button>
+      </div>
+      <div class="setting-row" id="row-notes">
+        <span class="setting-label">Show speaker notes
+          <span class="setting-note">Sent by the show machine</span>
+        </span>
+        <button class="toggle on" id="toggle-notes" onclick="toggleNotes()">On</button>
+      </div>
     </div>
     
     <div class="screenshot-panel" id="screenshotPanel">
@@ -413,6 +488,7 @@
       </button>
     </div>
 
+    <div class="resize-handle" id="notesResize" title="Drag to resize" style="display: none;"></div>
     <div class="notes" id="notesSection" style="display: none;">
       <div class="notes-title">Speaker Notes</div>
       <div class="notes-content" id="notesContent"></div>
@@ -450,11 +526,14 @@
     let requireName = false;
     let features = {};
     let screenshotVisible = false;
+    let showNotesPref = localStorage.getItem('oc-show-notes') !== '0';
+    let wakeLockPref = localStorage.getItem('oc-wake-lock') !== '0';
     let laserActive = false;
     let voiceActive = false;
     let recognition = null;
 
     async function requestWakeLock() {
+      if (!wakeLockPref) return;
       if ('wakeLock' in navigator) {
         try {
           wakeLock = await navigator.wakeLock.request('screen');
@@ -492,9 +571,9 @@
       updateClickAccessStatus();
       updateFeatureButtons();
       
-      if (data.notes) {
-        updateNotes(data.notes);
-      }
+      // Always call through, so the panel shows (blank) when the producer has
+      // speaker notes enabled but the current slide has none.
+      updateNotes(data.notes);
 
       if (data.timer && data.timerStartedAt) {
         timerEndTime = data.timerStartedAt + (data.timer * 1000);
@@ -546,6 +625,7 @@
     socket.on('features-changed', ({ features: newFeatures }) => {
       features = { ...features, ...newFeatures };
       updateFeatureButtons();
+      applyNotesVisibility();
     });
 
     socket.on('screenshot-updated', ({ screenshot }) => {
@@ -687,15 +767,22 @@
     }
 
     function updateNotes(notes) {
+      document.getElementById('notesContent').textContent = notes || '';
+      applyNotesVisibility();
+    }
+
+    // Visibility follows the producer's speaker-notes toggle, so the panel
+    // stays put (blank) on slides with no notes instead of appearing and
+    // vanishing as the deck moves. Producer-typed notes still show it when
+    // the toggle is off.
+    function applyNotesVisibility() {
       const notesSection = document.getElementById('notesSection');
-      const notesContent = document.getElementById('notesContent');
-      
-      if (notes && notes.trim()) {
-        notesContent.textContent = notes;
-        notesSection.style.display = 'block';
-      } else {
-        notesSection.style.display = 'none';
-      }
+      const notesResize = document.getElementById('notesResize');
+      const hasText = !!document.getElementById('notesContent').textContent.trim();
+      const visible = features.speakerNotesEnabled ? showNotesPref : hasText;
+
+      notesSection.style.display = visible ? 'block' : 'none';
+      notesResize.style.display = visible ? 'flex' : 'none';
     }
 
     function updateClock() {
@@ -736,49 +823,135 @@
       }
     }
 
+    // Rows appear only for the features the producer enabled for this session.
     function updateFeatureButtons() {
-      const featureButtons = document.getElementById('featureButtons');
-      const screenshotBtn = document.getElementById('screenshotBtn');
-      const laserBtn = document.getElementById('laserBtn');
-      const voiceBtn = document.getElementById('voiceBtn');
-      
-      const hasFeatures = features.screenshotEnabled || features.laserPointerEnabled || features.voiceControlEnabled;
-      featureButtons.style.display = hasFeatures ? 'flex' : 'none';
-      
-      screenshotBtn.style.display = features.screenshotEnabled ? 'block' : 'none';
-      laserBtn.style.display = features.laserPointerEnabled ? 'block' : 'none';
-      voiceBtn.style.display = features.voiceControlEnabled ? 'block' : 'none';
+      document.getElementById('row-screenshot').style.display = features.screenshotEnabled ? 'flex' : 'none';
+      document.getElementById('row-laser').style.display = features.laserPointerEnabled ? 'flex' : 'none';
+      document.getElementById('row-voice').style.display = features.voiceControlEnabled ? 'flex' : 'none';
+      document.getElementById('row-notes').style.display = features.speakerNotesEnabled ? 'flex' : 'none';
+
+      // A feature switched off mid-session must not leave its panel on screen.
+      if (!features.screenshotEnabled && screenshotVisible) toggleScreenshot();
+      if (!features.laserPointerEnabled && laserActive) toggleLaser();
     }
 
-    function updateScreenshot(screenshot) {
-      if (screenshot && screenshotVisible) {
-        document.getElementById('screenshotImg').src = screenshot;
+    function setToggle(id, on) {
+      const btn = document.getElementById(id);
+      btn.textContent = on ? 'On' : 'Off';
+      btn.classList.toggle('on', on);
+    }
+
+    function toggleSettings() {
+      document.getElementById('settingsPanel').classList.toggle('open');
+    }
+
+    function toggleNotes() {
+      showNotesPref = !showNotesPref;
+      setToggle('toggle-notes', showNotesPref);
+      localStorage.setItem('oc-show-notes', showNotesPref ? '1' : '0');
+      applyNotesVisibility();
+    }
+
+    async function toggleWakeLock() {
+      wakeLockPref = !wakeLockPref;
+      setToggle('toggle-wake', wakeLockPref);
+      localStorage.setItem('oc-wake-lock', wakeLockPref ? '1' : '0');
+
+      if (wakeLockPref) {
+        requestWakeLock();
+      } else if (wakeLock) {
+        try {
+          await wakeLock.release();
+        } catch (error) {
+          console.error('Wake lock release failed:', error);
+        }
+        wakeLock = null;
       }
+    }
+
+    // Drag the bar to resize the panel above or below it. The controls sit in
+    // the flex remainder, so they shrink and grow to match.
+    function makeResizable(handleId, panelId, edge, storageKey, minPx) {
+      const handle = document.getElementById(handleId);
+      const panel = document.getElementById(panelId);
+
+      const saved = localStorage.getItem(storageKey);
+      if (saved) panel.style.height = saved + 'px';
+
+      let dragging = false;
+      let startY = 0;
+      let startHeight = 0;
+
+      handle.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        startY = e.clientY;
+        startHeight = panel.getBoundingClientRect().height;
+        try {
+          handle.setPointerCapture(e.pointerId);
+        } catch (error) {
+          // Capture is an optimisation; the drag still tracks without it.
+        }
+        e.preventDefault();
+      });
+
+      handle.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        // Dragging down grows a panel above the handle and shrinks one below.
+        const delta = edge === 'below' ? startY - e.clientY : e.clientY - startY;
+        const maxPx = window.innerHeight * 0.6;
+        const height = Math.min(maxPx, Math.max(minPx, startHeight + delta));
+        panel.style.height = height + 'px';
+        localStorage.setItem(storageKey, Math.round(height));
+      });
+
+      const endDrag = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        try {
+          handle.releasePointerCapture(e.pointerId);
+        } catch (error) {
+          // Nothing captured; nothing to release.
+        }
+      };
+
+      handle.addEventListener('pointerup', endDrag);
+      handle.addEventListener('pointercancel', endDrag);
+    }
+
+    // Decode each frame off-screen and swap it in only once it is ready.
+    // Assigning straight to the visible <img> blanks it while the browser
+    // decodes, which reads as a blink on every frame.
+    let screenshotSeq = 0;
+
+    function updateScreenshot(screenshot) {
+      if (!screenshot || !screenshotVisible) return;
+
+      const seq = ++screenshotSeq;
+      const loader = new Image();
+      loader.onload = () => {
+        // Drop frames that arrived out of order behind a newer one.
+        if (seq !== screenshotSeq) return;
+        document.getElementById('screenshotImg').src = loader.src;
+      };
+      loader.src = screenshot;
     }
 
     function toggleScreenshot() {
       screenshotVisible = !screenshotVisible;
       const panel = document.getElementById('screenshotPanel');
-      const btn = document.getElementById('screenshotBtn');
-      
+
       panel.style.display = screenshotVisible ? 'block' : 'none';
-      if (screenshotVisible) {
-        btn.classList.add('active');
-      } else {
-        btn.classList.remove('active');
-      }
+      setToggle('toggle-screenshot', screenshotVisible);
     }
 
     function toggleLaser() {
       laserActive = !laserActive;
-      const btn = document.getElementById('laserBtn');
-      
+      setToggle('toggle-laser', laserActive);
+
       if (laserActive) {
-        btn.classList.add('active');
         document.addEventListener('mousemove', handleLaserMove);
         document.addEventListener('touchmove', handleLaserMove);
       } else {
-        btn.classList.remove('active');
         document.removeEventListener('mousemove', handleLaserMove);
         document.removeEventListener('touchmove', handleLaserMove);
         socket.emit('laser-pointer', { code: sessionCode, token: clickerToken, x: 0, y: 0, active: false });
@@ -803,13 +976,11 @@
 
     function toggleVoice() {
       voiceActive = !voiceActive;
-      const btn = document.getElementById('voiceBtn');
-      
+      setToggle('toggle-voice', voiceActive);
+
       if (voiceActive) {
-        btn.classList.add('active');
         startVoiceRecognition();
       } else {
-        btn.classList.remove('active');
         stopVoiceRecognition();
       }
     }
@@ -818,7 +989,7 @@
       if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         alert('Voice recognition not supported in this browser');
         voiceActive = false;
-        document.getElementById('voiceBtn').classList.remove('active');
+        setToggle('toggle-voice', false);
         return;
       }
       
@@ -890,6 +1061,13 @@
         submitNameFromModal();
       }
     });
+
+    // The header grows downward as you drag; the notes panel grows upward.
+    makeResizable('headerResize', 'headerSection', 'above', 'oc-header-height', 90);
+    makeResizable('notesResize', 'notesSection', 'below', 'oc-notes-height', 44);
+
+    setToggle('toggle-notes', showNotesPref);
+    setToggle('toggle-wake', wakeLockPref);
 
     // Auto-join if code is in URL
     const urlParams = new URLSearchParams(window.location.search);
