@@ -712,6 +712,14 @@
     // Unlock audio on any user interaction
     document.addEventListener('click', unlockAudio, { once: true });
     document.addEventListener('touchstart', unlockAudio, { once: true });
+
+    // Auto-join if code is in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlCode = urlParams.get('code');
+    if (urlCode) {
+      document.getElementById('codeInput').value = urlCode.toUpperCase();
+      joinSession();
+    }
   </script>
 </body>
 </html>

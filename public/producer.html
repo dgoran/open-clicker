@@ -37,6 +37,41 @@
       font-family: 'Courier New', monospace;
       word-break: break-all;
     }
+    .share-links {
+      max-width: 560px;
+      margin: 16px auto 0;
+      text-align: left;
+    }
+    .share-link-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .share-link-label {
+      flex: 0 0 100px;
+      color: #666;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: right;
+    }
+    .share-link-input {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #333;
+      background: #fafafa;
+    }
+    .button.share-copy {
+      width: auto;
+      padding: 8px 14px;
+      font-size: 13px;
+      margin: 0;
+      flex: 0 0 auto;
+    }
     .card {
       background: white;
       border-radius: 12px;
@@ -209,10 +244,12 @@
       text-align: center;
       padding: 40px 20px;
       min-height: 60vh;
-      display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+    }
+    #setup.active {
+      display: flex;
     }
     #setup h1 {
       font-size: clamp(22px, 6vw, 28px);
@@ -350,6 +387,18 @@
         <h1>Producer Control</h1>
         <div class="session-code" id="sessionCode"></div>
         <p style="color: #666;">Share this code with clickers and the show client</p>
+        <div class="share-links">
+          <div class="share-link-row">
+            <span class="share-link-label">Presenter link</span>
+            <input type="text" class="share-link-input" id="presenterLink" readonly onclick="this.select()">
+            <button class="button share-copy" onclick="copyShareLink('presenterLink', this)">Copy</button>
+          </div>
+          <div class="share-link-row">
+            <span class="share-link-label">Cue link</span>
+            <input type="text" class="share-link-input" id="cueLink" readonly onclick="this.select()">
+            <button class="button share-copy" onclick="copyShareLink('cueLink', this)">Copy</button>
+          </div>
+        </div>
         <button class="button secondary" onclick="endSessionAndLogout()" style="margin-top: 12px;">End Session & Logout</button>
       </header>
 
@@ -477,6 +526,7 @@
             sessionCode = urlCode.toUpperCase();
             showProducer();
             document.getElementById('sessionCode').textContent = sessionCode;
+            updateShareLinks();
             socket.emit('reclaim-producer', { code: sessionCode });
           } else {
             showSetup();
@@ -488,6 +538,26 @@
         console.error('Auth check error:', error);
         showAuth();
       }
+    }
+
+    function updateShareLinks() {
+      if (!sessionCode) return;
+      const base = window.location.origin;
+      document.getElementById('presenterLink').value = `${base}/clicker.html?code=${sessionCode}`;
+      document.getElementById('cueLink').value = `${base}/show.html?code=${sessionCode}`;
+    }
+
+    async function copyShareLink(inputId, button) {
+      const input = document.getElementById(inputId);
+      try {
+        await navigator.clipboard.writeText(input.value);
+      } catch (error) {
+        input.select();
+        document.execCommand('copy');
+      }
+      const original = button.textContent;
+      button.textContent = 'Copied!';
+      setTimeout(() => { button.textContent = original; }, 1500);
     }
 
     function showAuth() {
@@ -604,6 +674,7 @@
       features = sessionFeatures || features;
       document.getElementById('sessionCode').textContent = code;
       document.getElementById('requireNameCheckbox').checked = requireName;
+      updateShareLinks();
       updateFeatureUI();
       showProducer();
     });
@@ -616,6 +687,7 @@
       document.getElementById('sessionCode').textContent = code;
       document.getElementById('requireNameCheckbox').checked = requireName;
       document.getElementById('notes').value = notes || '';
+      updateShareLinks();
       updateFeatureUI();
       updateLockStatus(locked);
       
