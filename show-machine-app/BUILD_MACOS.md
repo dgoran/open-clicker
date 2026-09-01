@@ -96,8 +96,8 @@ Build time: 2-3 minutes depending on your Mac's speed.
 
 Built files are in the `dist` folder:
 
-- **Apple Silicon DMG**: `dist/Open Clicker Show Machine-1.8.3-arm64.dmg`
-- **Apple Silicon ZIP**: `dist/Open Clicker Show Machine-1.8.3-arm64-mac.zip`
+- **Apple Silicon DMG**: `dist/Open Clicker Show Machine-1.8.4-arm64.dmg`
+- **Apple Silicon ZIP**: `dist/Open Clicker Show Machine-1.8.4-arm64-mac.zip`
 
 The DMG file provides the best user experience—users just drag the app to Applications.
 
@@ -153,8 +153,8 @@ fi
 echo ""
 echo "SUCCESS! Build complete."
 echo "Find your apps in the 'dist' folder:"
-echo "  - Apple Silicon DMG: dist/Open Clicker Show Machine-1.8.3-arm64.dmg"
-echo "  - Apple Silicon ZIP: dist/Open Clicker Show Machine-1.8.3-arm64-mac.zip"
+echo "  - Apple Silicon DMG: dist/Open Clicker Show Machine-1.8.4-arm64.dmg"
+echo "  - Apple Silicon ZIP: dist/Open Clicker Show Machine-1.8.4-arm64-mac.zip"
 ```
 
 Make it executable and run:
@@ -368,7 +368,7 @@ This is beyond the scope of the basic build, but electron-builder supports it:
 Then run:
 ```bash
 npm run build:mac
-xcrun notarytool submit dist/Open\ Clicker\ Show\ Machine-1.8.3-x64.dmg \
+xcrun notarytool submit dist/Open\ Clicker\ Show\ Machine-1.8.4-x64.dmg \
   --apple-id your@email.com --team-id TEAM_ID --password app-specific-password
 ```
 

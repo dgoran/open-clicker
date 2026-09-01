@@ -58,7 +58,7 @@ The server will start on `http://localhost:3000`
 3. **Show Machine**: On the computer running your presentation:
 
    **Option 1 - Standalone Desktop App (Recommended - Windows/macOS/Linux)**
-   - **Windows**: Download `Open Clicker Show Machine-1.8.3-portable.exe` from [Releases](https://github.com/dgoran/open-clicker/releases)
+   - **Windows**: Download `Open Clicker Show Machine-1.8.4-portable.exe` from [Releases](https://github.com/dgoran/open-clicker/releases)
    - **macOS**: Download the .dmg or .zip for Apple Silicon Macs (M1/M2/M3/M4) from [Releases](https://github.com/dgoran/open-clicker/releases)
    - **Linux**: Download the .AppImage from [Releases](https://github.com/dgoran/open-clicker/releases), make it executable (`chmod +x`), and run
    - Run the app, enter server URL and session code
@@ -129,8 +129,8 @@ This security model is designed for both local network and public internet use, 
 
 **Windows:**
 1. Download from [Releases](https://github.com/dgoran/open-clicker/releases)
-   - Portable: `Open Clicker Show Machine-1.8.3-portable.exe` (no installation)
-   - Installer: `Open Clicker Show Machine Setup 1.8.3.exe` (traditional installer)
+   - Portable: `Open Clicker Show Machine-1.8.4-portable.exe` (no installation)
+   - Installer: `Open Clicker Show Machine Setup 1.8.4.exe` (traditional installer)
 2. Run the app
 3. Enter server URL and session code in the GUI
 4. Focus your presentation window

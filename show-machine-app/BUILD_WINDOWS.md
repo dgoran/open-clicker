@@ -92,8 +92,8 @@ npm run build:installer
 
 Built files are in the `dist` folder:
 
-- **Portable**: `dist/Open Clicker Show Machine-1.8.3-portable.exe`
-- **Installer**: `dist/Open Clicker Show Machine Setup 1.8.3.exe`
+- **Portable**: `dist/Open Clicker Show Machine-1.8.4-portable.exe`
+- **Installer**: `dist/Open Clicker Show Machine Setup 1.8.4.exe`
 
 The portable .exe is a single file that can be copied to any Windows computer and run immediately.
 
@@ -139,8 +139,8 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "SUCCESS! Build complete." -ForegroundColor Green
 Write-Host "Find your executable in the 'dist' folder:" -ForegroundColor Green
-Write-Host "  - Portable: dist/Open Clicker Show Machine-1.8.3-portable.exe" -ForegroundColor Cyan
-Write-Host "  - Installer: dist/Open Clicker Show Machine Setup 1.8.3.exe" -ForegroundColor Cyan
+Write-Host "  - Portable: dist/Open Clicker Show Machine-1.8.4-portable.exe" -ForegroundColor Cyan
+Write-Host "  - Installer: dist/Open Clicker Show Machine Setup 1.8.4.exe" -ForegroundColor Cyan
 ```
 
 Run it with:
