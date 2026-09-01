@@ -341,13 +341,52 @@ The create response returns the code, the producer token, and ready-to-share lin
 }
 ```
 
-| Method   | Endpoint              | Description                                              |
-| -------- | --------------------- | -------------------------------------------------------- |
-| `POST`   | `/api/sessions`       | Create a session owned by the signed-in account          |
-| `GET`    | `/api/sessions/:code` | Status of a session you own (presenter count, lock, …)   |
-| `DELETE` | `/api/sessions/:code` | End a session you own and disconnect its participants    |
-| `GET`    | `/api/my-sessions`    | List all of your active sessions                         |
-| `GET`    | `/api/session/:code`  | Public join info for a code (no authentication required) |
+Every producer function is available over HTTP as well as over the socket
+connection, and both drive the same code, so changes made through the API reach
+connected clickers and cue displays immediately.
+
+### Sessions
+
+| Method   | Endpoint                     | Description                                              |
+| -------- | ---------------------------- | -------------------------------------------------------- |
+| `POST`   | `/api/sessions`              | Create a session owned by the signed-in account          |
+| `GET`    | `/api/sessions/:code`        | Summary of a session you own                             |
+| `GET`    | `/api/sessions/:code/detail` | Full state: notes, timer, features and connected presenters |
+| `PATCH`  | `/api/sessions/:code`        | Update settings (see below)                              |
+| `DELETE` | `/api/sessions/:code`        | End a session you own and disconnect its participants    |
+| `GET`    | `/api/my-sessions`           | List all of your active sessions                         |
+| `GET`    | `/api/session/:code`         | Public join info for a code (no authentication required) |
+
+`PATCH /api/sessions/:code` accepts any combination of `locked`, `notes`,
+`requireName`, `timerMinutes`, `resetTimer`, and `features` (a partial object
+merged over the current feature flags):
+
+```bash
+curl -b cookies.txt -X PATCH http://localhost:3000/api/sessions/A1B2C3 \
+  -H 'Content-Type: application/json' \
+  -d '{"locked":true,"notes":"Slide 4 is the demo","timerMinutes":10,"features":{"screenshotEnabled":true}}'
+```
+
+### Running the show
+
+| Method  | Endpoint                                       | Description                                        |
+| ------- | ---------------------------------------------- | -------------------------------------------------- |
+| `POST`  | `/api/sessions/:code/advance`                  | Advance the deck — `{"direction":"next"\|"prev"}`  |
+| `GET`   | `/api/sessions/:code/presenters`               | Connected presenters and their click access        |
+| `PATCH` | `/api/sessions/:code/presenters/:presenterId`  | Grant or suspend one presenter's clicking          |
+| `POST`  | `/api/sessions/:code/prompt-name`              | Ask anonymous presenters to enter a name           |
+| `POST`  | `/api/sessions/:code/message`                  | Send a Speaker Chat message — `{"message":"…"}`    |
+
+`advance` is not blocked by the clicker lock: the lock exists to hold back
+presenters, while the API acts as the session owner. Speaker Chat returns `409`
+unless `messagesEnabled` is on for the session.
+
+### Other
+
+| Method | Endpoint       | Description                     |
+| ------ | -------------- | ------------------------------- |
+| `GET`  | `/api/version` | The running server version      |
+| `GET`  | `/api/me`      | The signed-in account, if any   |
 
 Sessions created this way are identical to those made in the browser: they persist across
 server restarts, appear in your Control Center, and can be opened at any time via

@@ -575,6 +575,144 @@ describe('Socket Protocol (end-to-end)', function () {
     });
   });
 
+  describe('session control API', () => {
+    const authHeaders = () => ({ Cookie: authCookie, 'X-Forwarded-Proto': 'https', 'Content-Type': 'application/json' });
+
+    it('drives lock, notes, timer and features, and clients see each change', async () => {
+      const { code } = await createSession();
+      const { clicker } = await joinClicker(code);
+
+      const locked = once(clicker, 'lock-changed');
+      const notes = once(clicker, 'notes-changed');
+      const timer = once(clicker, 'timer-changed');
+      const features = once(clicker, 'features-changed');
+
+      const res = await request(
+        { path: `/api/sessions/${code}`, method: 'PATCH', headers: authHeaders() },
+        { locked: true, notes: 'from the api', timerMinutes: 3, features: { messagesEnabled: true } }
+      );
+
+      expect(res.statusCode).to.equal(200);
+      expect(res.body.locked).to.equal(true);
+      expect(res.body.notes).to.equal('from the api');
+      expect(res.body.timer).to.equal(180);
+      expect(res.body.features.messagesEnabled).to.equal(true);
+
+      expect((await locked).locked).to.equal(true);
+      expect((await notes).notes).to.equal('from the api');
+      expect((await timer).timer).to.equal(180);
+      expect((await features).features.messagesEnabled).to.equal(true);
+    });
+
+    it('advances the deck', async () => {
+      const { code } = await createSession();
+      const { clicker } = await joinClicker(code);
+
+      const advance = once(clicker, 'advance');
+      const res = await request(
+        { path: `/api/sessions/${code}/advance`, method: 'POST', headers: authHeaders() },
+        { direction: 'prev' }
+      );
+      expect(res.statusCode).to.equal(200);
+      expect((await advance).direction).to.equal('prev');
+    });
+
+    it('rejects an unknown advance direction', async () => {
+      const { code } = await createSession();
+      const res = await request(
+        { path: `/api/sessions/${code}/advance`, method: 'POST', headers: authHeaders() },
+        { direction: 'sideways' }
+      );
+      expect(res.statusCode).to.equal(400);
+    });
+
+    it('lists presenters and suspends one', async () => {
+      const { code } = await createSession();
+      const { clicker } = await joinClicker(code, 'Suspend Me');
+
+      const list = await request({ path: `/api/sessions/${code}/presenters`, method: 'GET', headers: authHeaders() });
+      expect(list.body.presenters).to.have.lengthOf(1);
+      const presenterId = list.body.presenters[0].id;
+
+      const changed = once(clicker, 'click-access-changed');
+      const res = await request(
+        { path: `/api/sessions/${code}/presenters/${presenterId}`, method: 'PATCH', headers: authHeaders() },
+        { clickAccessEnabled: false }
+      );
+      expect(res.statusCode).to.equal(200);
+      expect((await changed).clickAccessEnabled).to.equal(false);
+    });
+
+    it('404s an unknown presenter', async () => {
+      const { code } = await createSession();
+      const res = await request(
+        { path: `/api/sessions/${code}/presenters/nobody`, method: 'PATCH', headers: authHeaders() },
+        { clickAccessEnabled: true }
+      );
+      expect(res.statusCode).to.equal(404);
+    });
+
+    it('sends Speaker Chat only when the feature is on', async () => {
+      const { code } = await createSession();
+      const { clicker } = await joinClicker(code);
+
+      const blocked = await request(
+        { path: `/api/sessions/${code}/message`, method: 'POST', headers: authHeaders() },
+        { message: 'too early' }
+      );
+      expect(blocked.statusCode).to.equal(409);
+
+      await request(
+        { path: `/api/sessions/${code}`, method: 'PATCH', headers: authHeaders() },
+        { features: { messagesEnabled: true } }
+      );
+
+      const received = once(clicker, 'message-received');
+      const res = await request(
+        { path: `/api/sessions/${code}/message`, method: 'POST', headers: authHeaders() },
+        { message: 'hello over http' }
+      );
+      expect(res.body.delivered).to.equal(1);
+      expect((await received).message).to.equal('hello over http');
+    });
+
+    it('prompts anonymous presenters for a name', async () => {
+      const { producer, code, token } = await createSession();
+      producer.emit('set-require-name', { code, token, requireName: false });
+      await once(producer, 'require-name-updated');
+
+      const anon = connect();
+      await once(anon, 'connect');
+      anon.emit('join-session', { code, role: 'clicker' });
+      await once(anon, 'session-joined');
+
+      const prompted = once(anon, 'name-prompt');
+      const res = await request({ path: `/api/sessions/${code}/prompt-name`, method: 'POST', headers: authHeaders() });
+      expect(res.body.prompted).to.equal(1);
+      await prompted;
+    });
+
+    it('reports full detail for the owner', async () => {
+      const { code } = await createSession();
+      await joinClicker(code, 'Detail Tester');
+
+      const res = await request({ path: `/api/sessions/${code}/detail`, method: 'GET', headers: authHeaders() });
+      expect(res.statusCode).to.equal(200);
+      expect(res.body.presenters[0].displayName).to.equal('Detail Tester');
+      expect(res.body.features).to.have.property('screenshotEnabled');
+      expect(res.body).to.have.property('notes');
+    });
+
+    it('requires authentication', async () => {
+      const { code } = await createSession();
+      const res = await request(
+        { path: `/api/sessions/${code}`, method: 'PATCH', headers: { 'Content-Type': 'application/json' } },
+        { locked: true }
+      );
+      expect(res.statusCode).to.equal(401);
+    });
+  });
+
   describe('HTTP session lookup', () => {
     it('exposes public session info via /api/session/:code', async () => {
       const { code } = await createSession();

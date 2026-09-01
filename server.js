@@ -189,6 +189,104 @@ function sessionSummary(s) {
   };
 }
 
+// --- Session operations -----------------------------------------------
+// Shared by the socket handlers and the HTTP API so both surfaces behave
+// identically and emit the same events to connected clients.
+
+function opSetLock(session, locked) {
+  session.locked = !!locked;
+  persistSession(session);
+  io.to(session.code).emit('lock-changed', { locked: session.locked });
+  console.log(`Session ${session.code} lock changed:`, session.locked);
+}
+
+function opSetNotes(session, notes) {
+  session.notes = String(notes ?? '');
+  persistSession(session);
+  io.to(session.code).emit('notes-changed', { notes: session.notes });
+}
+
+function opSetTimer(session, minutes) {
+  session.timer = Math.max(0, Number(minutes) || 0) * 60;
+  session.timerStartedAt = Date.now();
+  persistSession(session);
+  io.to(session.code).emit('timer-changed', {
+    timer: session.timer,
+    timerStartedAt: session.timerStartedAt
+  });
+  console.log(`Session ${session.code} timer set to ${minutes} minutes`);
+}
+
+function opResetTimer(session) {
+  session.timerStartedAt = Date.now();
+  persistSession(session);
+  io.to(session.code).emit('timer-changed', {
+    timer: session.timer,
+    timerStartedAt: session.timerStartedAt
+  });
+}
+
+function opSetRequireName(session, requireName) {
+  session.requireName = !!requireName;
+  persistSession(session);
+}
+
+function opSetFeatures(session, features) {
+  session.features = { ...session.features, ...features };
+  persistSession(session);
+  io.to(session.code).emit('features-changed', { features: session.features });
+  console.log(`Session ${session.code}: features updated`, features);
+}
+
+// Returns false when the presenter is not connected.
+function opSetPresenterAccess(session, presenterId, enabled) {
+  const presenter = session.presenters.get(presenterId);
+  if (!presenter) return false;
+
+  presenter.clickAccessEnabled = !!enabled;
+  io.to(presenterId).emit('click-access-changed', { clickAccessEnabled: presenter.clickAccessEnabled });
+  notifyPresentersUpdated(session);
+  console.log(`Session ${session.code}: ${presenter.displayName} click access ${enabled ? 'enabled' : 'disabled'}`);
+  return true;
+}
+
+function opPromptName(session) {
+  let prompted = 0;
+  for (const [presenterId, presenter] of session.presenters.entries()) {
+    if (presenter.isAnonymous) {
+      io.to(presenterId).emit('name-prompt');
+      prompted += 1;
+    }
+  }
+  console.log(`Session ${session.code}: name prompt sent to ${prompted} anonymous presenter(s)`);
+  return prompted;
+}
+
+// Returns the number of presenters the message reached.
+function opSendMessage(session, targetId, message) {
+  const messageData = { message, timestamp: Date.now(), from: 'Producer' };
+  let delivered = 0;
+
+  if (targetId === 'all' || !targetId) {
+    for (const clickerId of session.clickers.keys()) {
+      io.to(clickerId).emit('message-received', messageData);
+      delivered += 1;
+    }
+  } else if (session.clickers.has(targetId)) {
+    io.to(targetId).emit('message-received', messageData);
+    delivered = 1;
+  }
+
+  console.log(`Session ${session.code}: message delivered to ${delivered} presenter(s)`);
+  return delivered;
+}
+
+function opAdvance(session, direction) {
+  touchSession(session);
+  io.to(session.code).emit('advance', { direction });
+  console.log(`Session ${session.code}: ${direction}`);
+}
+
 function endSession(code, reason) {
   sessions.delete(code);
   getDb().prepare('DELETE FROM sessions WHERE code = ?').run(code);
@@ -517,6 +615,113 @@ app.get('/api/sessions/:code', requireAuth, (req, res) => {
   res.json(sessionSummary(session));
 });
 
+// Full session detail for the owner, including live participant state.
+app.get('/api/sessions/:code/detail', requireAuth, (req, res) => {
+  const session = ownedSession(req, res);
+  if (!session) return;
+  res.json({
+    ...sessionSummary(session),
+    notes: session.notes,
+    timer: session.timer,
+    timerStartedAt: session.timerStartedAt,
+    features: session.features,
+    presenters: presenterList(session),
+    showClientCount: session.showClients.size
+  });
+});
+
+// Update any combination of session settings.
+app.patch('/api/sessions/:code', requireAuth, (req, res) => {
+  const session = ownedSession(req, res);
+  if (!session) return;
+
+  const { locked, notes, requireName, features, timerMinutes, resetTimer } = req.body || {};
+
+  if (locked !== undefined) opSetLock(session, locked);
+  if (notes !== undefined) opSetNotes(session, notes);
+  if (requireName !== undefined) opSetRequireName(session, requireName);
+  if (features !== undefined) {
+    if (typeof features !== 'object' || features === null) {
+      return res.status(400).json({ error: 'features must be an object' });
+    }
+    opSetFeatures(session, features);
+  }
+  if (timerMinutes !== undefined) {
+    if (Number.isNaN(Number(timerMinutes))) {
+      return res.status(400).json({ error: 'timerMinutes must be a number' });
+    }
+    opSetTimer(session, timerMinutes);
+  }
+  if (resetTimer) opResetTimer(session);
+
+  res.json({
+    ...sessionSummary(session),
+    notes: session.notes,
+    timer: session.timer,
+    timerStartedAt: session.timerStartedAt,
+    features: session.features
+  });
+});
+
+// Advance the deck. The owner drives the session, so this is not blocked by
+// the clicker lock, which exists to hold back presenters.
+app.post('/api/sessions/:code/advance', requireAuth, (req, res) => {
+  const session = ownedSession(req, res);
+  if (!session) return;
+
+  const direction = (req.body && req.body.direction) || 'next';
+  if (direction !== 'next' && direction !== 'prev') {
+    return res.status(400).json({ error: "direction must be 'next' or 'prev'" });
+  }
+
+  opAdvance(session, direction);
+  res.json({ success: true, direction });
+});
+
+app.get('/api/sessions/:code/presenters', requireAuth, (req, res) => {
+  const session = ownedSession(req, res);
+  if (!session) return;
+  res.json({ presenters: presenterList(session) });
+});
+
+app.patch('/api/sessions/:code/presenters/:presenterId', requireAuth, (req, res) => {
+  const session = ownedSession(req, res);
+  if (!session) return;
+
+  const { clickAccessEnabled } = req.body || {};
+  if (clickAccessEnabled === undefined) {
+    return res.status(400).json({ error: 'clickAccessEnabled is required' });
+  }
+  if (!opSetPresenterAccess(session, req.params.presenterId, clickAccessEnabled)) {
+    return res.status(404).json({ error: 'Presenter not found' });
+  }
+
+  res.json({ presenters: presenterList(session) });
+});
+
+// Ask any presenter who joined anonymously to enter a name.
+app.post('/api/sessions/:code/prompt-name', requireAuth, (req, res) => {
+  const session = ownedSession(req, res);
+  if (!session) return;
+  res.json({ success: true, prompted: opPromptName(session) });
+});
+
+// Speaker Chat: send a message to one presenter or all of them.
+app.post('/api/sessions/:code/message', requireAuth, (req, res) => {
+  const session = ownedSession(req, res);
+  if (!session) return;
+
+  const { message, targetId } = req.body || {};
+  if (!message) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+  if (!session.features.messagesEnabled) {
+    return res.status(409).json({ error: 'Speaker Chat is disabled for this session' });
+  }
+
+  res.json({ success: true, delivered: opSendMessage(session, targetId, message) });
+});
+
 app.delete('/api/sessions/:code', requireAuth, (req, res) => {
   const session = ownedSession(req, res);
   if (!session) return;
@@ -651,37 +856,22 @@ io.on('connection', (socket) => {
 
   socket.on('set-lock', ({ code, token, locked }) => {
     const session = producerSession(code, token);
-    if (!session) return;
-    session.locked = locked;
-    persistSession(session);
-    io.to(code).emit('lock-changed', { locked });
-    console.log(`Session ${code} lock changed:`, locked);
+    if (session) opSetLock(session, locked);
   });
 
   socket.on('set-notes', ({ code, token, notes }) => {
     const session = producerSession(code, token);
-    if (!session) return;
-    session.notes = notes;
-    persistSession(session);
-    io.to(code).emit('notes-changed', { notes });
+    if (session) opSetNotes(session, notes);
   });
 
   socket.on('set-timer', ({ code, token, minutes }) => {
     const session = producerSession(code, token);
-    if (!session) return;
-    session.timer = minutes * 60;
-    session.timerStartedAt = Date.now();
-    persistSession(session);
-    io.to(code).emit('timer-changed', { timer: session.timer, timerStartedAt: session.timerStartedAt });
-    console.log(`Session ${code} timer set to ${minutes} minutes`);
+    if (session) opSetTimer(session, minutes);
   });
 
   socket.on('reset-timer', ({ code, token }) => {
     const session = producerSession(code, token);
-    if (!session) return;
-    session.timerStartedAt = Date.now();
-    persistSession(session);
-    io.to(code).emit('timer-changed', { timer: session.timer, timerStartedAt: session.timerStartedAt });
+    if (session) opResetTimer(session);
   });
 
   function handleAdvance(direction, { code, token }) {
@@ -702,9 +892,7 @@ io.on('connection', (socket) => {
         return fail('Your click access is suspended');
       }
     }
-    touchSession(session);
-    io.to(code).emit('advance', { direction });
-    console.log(`Session ${code}: ${direction}`);
+    opAdvance(session, direction);
   }
 
   socket.on('next', (payload) => handleAdvance('next', payload));
@@ -714,37 +902,23 @@ io.on('connection', (socket) => {
     const session = producerSession(code, token);
     if (!session) return;
 
-    const presenter = session.presenters.get(presenterId);
-    if (!presenter) {
+    if (!opSetPresenterAccess(session, presenterId, enabled)) {
       return fail('Presenter not found');
     }
-
-    presenter.clickAccessEnabled = enabled;
-    io.to(presenterId).emit('click-access-changed', { clickAccessEnabled: enabled });
-    notifyPresentersUpdated(session);
-
-    console.log(`Session ${code}: ${presenter.displayName} click access ${enabled ? 'enabled' : 'disabled'}`);
   });
 
   socket.on('set-require-name', ({ code, token, requireName }) => {
     const session = producerSession(code, token);
     if (!session) return;
-    session.requireName = requireName;
-    persistSession(session);
-    socket.emit('require-name-updated', { requireName });
-    console.log(`Session ${code}: requireName set to ${requireName}`);
+    opSetRequireName(session, requireName);
+    socket.emit('require-name-updated', { requireName: session.requireName });
   });
 
   socket.on('prompt-name', ({ code, token }) => {
     const session = producerSession(code, token);
     if (!session) return;
 
-    for (const [presenterId, presenter] of session.presenters.entries()) {
-      if (presenter.isAnonymous) {
-        io.to(presenterId).emit('name-prompt');
-      }
-    }
-    console.log(`Session ${code}: name prompt sent to anonymous presenters`);
+    opPromptName(session);
   });
 
   socket.on('set-display-name', ({ code, token, displayName }) => {
@@ -775,10 +949,7 @@ io.on('connection', (socket) => {
   socket.on('set-features', ({ code, token, features }) => {
     const session = producerSession(code, token);
     if (!session) return;
-    session.features = { ...session.features, ...features };
-    persistSession(session);
-    io.to(code).emit('features-changed', { features: session.features });
-    console.log(`Session ${code}: features updated`, features);
+    opSetFeatures(session, features);
   });
 
   socket.on('screenshot-upload', ({ code, token, screenshot }) => {
@@ -827,17 +998,7 @@ io.on('connection', (socket) => {
       return fail('Messaging feature is disabled');
     }
 
-    const messageData = { message, timestamp: Date.now(), from: 'Producer' };
-
-    if (targetId === 'all') {
-      for (const clickerId of session.clickers.keys()) {
-        io.to(clickerId).emit('message-received', messageData);
-      }
-      console.log(`Session ${code}: message sent to all presenters`);
-    } else if (session.clickers.has(targetId)) {
-      io.to(targetId).emit('message-received', messageData);
-      console.log(`Session ${code}: message sent to ${targetId}`);
-    }
+    opSendMessage(session, targetId, message);
   });
 
   socket.on('laser-pointer', ({ code, token, x, y, active }) => {
