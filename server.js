@@ -101,6 +101,8 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+const PRODUCER_GRACE_PERIOD_MS = 30000;
+
 const sessionMiddleware = session({
   secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false,
@@ -349,6 +351,7 @@ io.on('connection', (socket) => {
       producer: socket.id,
       producerToken,
       userId,
+      producerDisconnectTimer: null,
       clickers: new Map(),
       showClients: new Map(),
       presenters: new Map(),
@@ -420,6 +423,54 @@ io.on('connection', (socket) => {
     }
     
     console.log(`Client ${socket.id} joined session ${code} as ${role}${displayName ? ` (${displayName})` : ' (anonymous)'}`);
+  });
+
+  socket.on('reclaim-producer', ({ code }) => {
+    const session = sessions.get(code);
+    const httpSession = socket.request.session;
+    const userId = httpSession?.userId;
+    
+    if (!session) {
+      socket.emit('error', { message: 'Session not found' });
+      return;
+    }
+    
+    if (!userId) {
+      socket.emit('error', { message: 'Authentication required to reclaim session' });
+      return;
+    }
+    
+    if (session.userId !== userId) {
+      socket.emit('error', { message: 'Unauthorized: You did not create this session' });
+      return;
+    }
+    
+    if (session.producerDisconnectTimer) {
+      clearTimeout(session.producerDisconnectTimer);
+      session.producerDisconnectTimer = null;
+    }
+    
+    session.producer = socket.id;
+    socket.join(code);
+    
+    socket.emit('producer-reclaimed', {
+      code: session.code,
+      token: session.producerToken,
+      locked: session.locked,
+      requireName: session.requireName,
+      features: session.features,
+      notes: session.notes,
+      timer: session.timer,
+      timerStartedAt: session.timerStartedAt,
+      presenters: Array.from(session.presenters.entries()).map(([id, data]) => ({
+        id,
+        displayName: data.displayName,
+        clickAccessEnabled: data.clickAccessEnabled,
+        isAnonymous: data.isAnonymous
+      }))
+    });
+    
+    console.log(`Producer reclaimed session ${code} by user ${userId}`);
   });
 
   socket.on('set-lock', ({ code, token, locked }) => {
@@ -748,9 +799,19 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     for (const [code, session] of sessions.entries()) {
       if (session.producer === socket.id) {
-        sessions.delete(code);
-        io.to(code).emit('session-ended');
-        console.log('Session ended:', code);
+        if (session.producerDisconnectTimer) {
+          clearTimeout(session.producerDisconnectTimer);
+        }
+        
+        session.producerDisconnectTimer = setTimeout(() => {
+          if (sessions.has(code)) {
+            sessions.delete(code);
+            io.to(code).emit('session-ended');
+            console.log('Session ended after grace period:', code);
+          }
+        }, PRODUCER_GRACE_PERIOD_MS);
+        
+        console.log(`Producer disconnected from session ${code}, grace period active`);
       } else {
         const wasPresenter = session.presenters.has(socket.id);
         session.clickers.delete(socket.id);

@@ -474,11 +474,10 @@
           const urlParams = new URLSearchParams(window.location.search);
           const urlCode = urlParams.get('code');
           if (urlCode) {
-            // Skip setup, go straight to producer view with this code
-            // (Note: in full implementation, would verify this is user's session)
-            showProducer();
-            document.getElementById('sessionCode').textContent = urlCode.toUpperCase();
             sessionCode = urlCode.toUpperCase();
+            showProducer();
+            document.getElementById('sessionCode').textContent = sessionCode;
+            socket.emit('reclaim-producer', { code: sessionCode });
           } else {
             showSetup();
           }
@@ -607,6 +606,42 @@
       document.getElementById('requireNameCheckbox').checked = requireName;
       updateFeatureUI();
       showProducer();
+    });
+
+    socket.on('producer-reclaimed', ({ code, token, locked, requireName: reqName, features: sessionFeatures, notes, timer, timerStartedAt, presenters }) => {
+      sessionCode = code;
+      producerToken = token;
+      requireName = reqName !== undefined ? reqName : true;
+      features = sessionFeatures || features;
+      document.getElementById('sessionCode').textContent = code;
+      document.getElementById('requireNameCheckbox').checked = requireName;
+      document.getElementById('notes').value = notes || '';
+      updateFeatureUI();
+      updateLockStatus(locked);
+      
+      if (presenters && presenters.length > 0) {
+        updatePresentersList(presenters);
+      }
+      
+      if (timer && timerStartedAt) {
+        timerEndTime = timerStartedAt + (timer * 1000);
+        updateTimerDisplay();
+        if (timerInterval) clearInterval(timerInterval);
+        timerInterval = setInterval(updateTimerDisplay, 100);
+      }
+      
+      showProducer();
+      console.log('Producer session reclaimed:', code);
+    });
+
+    socket.on('error', (error) => {
+      console.error('Socket error:', error);
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('code') && error.message && 
+          (error.message.includes('not found') || error.message.includes('Unauthorized'))) {
+        alert('Unable to access this session: ' + error.message);
+        window.location.href = '/producer.html';
+      }
     });
 
     socket.on('lock-changed', ({ locked }) => {
