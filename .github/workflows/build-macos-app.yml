@@ -13,6 +13,10 @@ on:
       - 'show-machine-app/**'
   workflow_dispatch:
 
+# Needed by the release-upload step; the repository default is read-only.
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build macOS App
