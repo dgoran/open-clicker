@@ -147,6 +147,46 @@ function touchSession(s) {
   }
 }
 
+// Single source of truth for new sessions, shared by the socket handler and
+// the HTTP API so both produce identical, persistable records.
+function createSessionRecord(userId, producerSocketId = null) {
+  const now = Date.now();
+  const session = {
+    code: generateCode(),
+    locked: false,
+    requireName: true,
+    notes: '',
+    timer: 0,
+    timerStartedAt: null,
+    producer: producerSocketId,
+    producerToken: generateToken(),
+    userId,
+    clickers: new Map(),
+    showClients: new Map(),
+    presenters: new Map(),
+    features: { ...DEFAULT_FEATURES },
+    screenshot: null,
+    lastScreenshotTime: null,
+    createdAt: now,
+    lastActivityAt: now
+  };
+  sessions.set(session.code, session);
+  persistSession(session);
+  return session;
+}
+
+function sessionSummary(s) {
+  return {
+    code: s.code,
+    locked: s.locked,
+    requireName: s.requireName,
+    createdAt: s.createdAt,
+    lastActivityAt: s.lastActivityAt,
+    presenterCount: s.presenters.size,
+    producerConnected: !!s.producer
+  };
+}
+
 function endSession(code, reason) {
   sessions.delete(code);
   getDb().prepare('DELETE FROM sessions WHERE code = ?').run(code);
@@ -419,41 +459,61 @@ app.get('/api/session/:code', (req, res) => {
   res.json({ code: session.code, requireName: session.requireName, locked: session.locked });
 });
 
-app.get('/api/my-sessions', (req, res) => {
+function requireAuth(req, res, next) {
   if (!req.session.userId) {
     return res.status(401).json({ error: 'Authentication required' });
   }
+  next();
+}
+
+// Resolves :code to a session the caller owns, or sends the error response.
+function ownedSession(req, res) {
+  const session = sessions.get(req.params.code.toUpperCase());
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return null;
+  }
+  if (session.userId !== req.session.userId) {
+    res.status(403).json({ error: 'Unauthorized: You did not create this session' });
+    return null;
+  }
+  return session;
+}
+
+app.get('/api/my-sessions', requireAuth, (req, res) => {
   const mine = [];
   for (const s of sessions.values()) {
     if (s.userId === req.session.userId) {
-      mine.push({
-        code: s.code,
-        locked: s.locked,
-        requireName: s.requireName,
-        createdAt: s.createdAt,
-        lastActivityAt: s.lastActivityAt,
-        presenterCount: s.presenters.size,
-        producerConnected: !!s.producer
-      });
+      mine.push(sessionSummary(s));
     }
   }
   mine.sort((a, b) => b.lastActivityAt - a.lastActivityAt);
   res.json({ sessions: mine });
 });
 
-app.delete('/api/sessions/:code', (req, res) => {
-  if (!req.session.userId) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-  const code = req.params.code.toUpperCase();
-  const session = sessions.get(code);
-  if (!session) {
-    return res.status(404).json({ error: 'Session not found' });
-  }
-  if (session.userId !== req.session.userId) {
-    return res.status(403).json({ error: 'Unauthorized: You did not create this session' });
-  }
-  endSession(code, 'ended by producer');
+app.post('/api/sessions', requireAuth, (req, res) => {
+  const session = createSessionRecord(req.session.userId);
+  const base = `${req.protocol}://${req.get('host')}`;
+  console.log('Session created via API:', session.code, 'by user:', req.session.userId);
+  res.status(201).json({
+    ...sessionSummary(session),
+    producerToken: session.producerToken,
+    presenterUrl: `${base}/clicker.html?code=${session.code}`,
+    cueUrl: `${base}/show.html?code=${session.code}`,
+    producerUrl: `${base}/producer.html?code=${session.code}`
+  });
+});
+
+app.get('/api/sessions/:code', requireAuth, (req, res) => {
+  const session = ownedSession(req, res);
+  if (!session) return;
+  res.json(sessionSummary(session));
+});
+
+app.delete('/api/sessions/:code', requireAuth, (req, res) => {
+  const session = ownedSession(req, res);
+  if (!session) return;
+  endSession(session.code, 'ended by producer');
   res.json({ success: true });
 });
 
@@ -498,33 +558,15 @@ io.on('connection', (socket) => {
       return fail('Authentication required to create session');
     }
 
-    const code = generateCode();
-    const producerToken = generateToken();
-    const now = Date.now();
-    const session = {
-      code,
-      locked: false,
-      requireName: true,
-      notes: '',
-      timer: 0,
-      timerStartedAt: null,
-      producer: socket.id,
-      producerToken,
-      userId,
-      clickers: new Map(),
-      showClients: new Map(),
-      presenters: new Map(),
-      features: { ...DEFAULT_FEATURES },
-      screenshot: null,
-      lastScreenshotTime: null,
-      createdAt: now,
-      lastActivityAt: now
-    };
-    sessions.set(code, session);
-    persistSession(session);
-    socket.join(code);
-    socket.emit('session-created', { code, token: producerToken, requireName: true, features: session.features });
-    console.log('Session created:', code, 'by user:', userId);
+    const session = createSessionRecord(userId, socket.id);
+    socket.join(session.code);
+    socket.emit('session-created', {
+      code: session.code,
+      token: session.producerToken,
+      requireName: session.requireName,
+      features: session.features
+    });
+    console.log('Session created:', session.code, 'by user:', userId);
   });
 
   socket.on('join-session', ({ code, role, displayName }) => {

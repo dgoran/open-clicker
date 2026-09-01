@@ -459,6 +459,85 @@ describe('Socket Protocol (end-to-end)', function () {
     });
   });
 
+  describe('session HTTP API', () => {
+    const authHeaders = () => ({ Cookie: authCookie, 'X-Forwarded-Proto': 'https' });
+
+    it('creates a session owned by the caller, usable over sockets', async () => {
+      const res = await request({ path: '/api/sessions', method: 'POST', headers: authHeaders() });
+      expect(res.statusCode).to.equal(201);
+      expect(res.body.code).to.match(/^[A-Z0-9]{6}$/);
+      expect(res.body.producerToken).to.have.lengthOf(64);
+      expect(res.body.presenterUrl).to.contain(`/clicker.html?code=${res.body.code}`);
+      expect(res.body.cueUrl).to.contain(`/show.html?code=${res.body.code}`);
+      expect(res.body.producerConnected).to.equal(false);
+
+      // the API-created session is a first-class session: owner can reclaim it
+      // and presenters can join and click
+      const code = res.body.code;
+      const reclaimer = connectAuthed();
+      await once(reclaimer, 'connect');
+      reclaimer.emit('reclaim-producer', { code });
+      const reclaimed = await once(reclaimer, 'producer-reclaimed');
+      expect(reclaimed.token).to.equal(res.body.producerToken);
+
+      const { clicker, token } = await joinClicker(code);
+      const advance = once(reclaimer, 'advance');
+      clicker.emit('next', { code, token });
+      expect((await advance).direction).to.equal('next');
+    });
+
+    it('persists an API-created session across a restart', async () => {
+      const res = await request({ path: '/api/sessions', method: 'POST', headers: authHeaders() });
+      const code = res.body.code;
+
+      serverModule.sessions.clear();
+      serverModule.loadPersistedSessions();
+
+      const restored = serverModule.sessions.get(code);
+      expect(restored).to.exist;
+      expect(restored.producerToken).to.equal(res.body.producerToken);
+    });
+
+    it('rejects unauthenticated session creation', async () => {
+      const res = await request({ path: '/api/sessions', method: 'POST' });
+      expect(res.statusCode).to.equal(401);
+      expect(res.body.error).to.equal('Authentication required');
+    });
+
+    it('reports session status to the owner', async () => {
+      const { code } = await createSession();
+      await joinClicker(code);
+
+      const res = await request({ path: `/api/sessions/${code.toLowerCase()}`, method: 'GET', headers: authHeaders() });
+      expect(res.statusCode).to.equal(200);
+      expect(res.body.code).to.equal(code);
+      expect(res.body.presenterCount).to.equal(1);
+      expect(res.body.producerConnected).to.equal(true);
+      expect(res.body).to.not.have.property('producerToken');
+    });
+
+    it('hides another user\'s session behind 403', async () => {
+      const { code } = await createSession();
+
+      const signup = await request(
+        { path: '/api/signup', method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-Proto': 'https' } },
+        { email: 'apisnoop@example.com', password: 'password123' }
+      );
+      const otherCookie = signup.cookies.map((c) => c.split(';')[0]).join('; ');
+
+      const res = await request({
+        path: `/api/sessions/${code}`, method: 'GET',
+        headers: { Cookie: otherCookie, 'X-Forwarded-Proto': 'https' }
+      });
+      expect(res.statusCode).to.equal(403);
+    });
+
+    it('404s an unknown code', async () => {
+      const res = await request({ path: '/api/sessions/ZZZZZZ', method: 'GET', headers: authHeaders() });
+      expect(res.statusCode).to.equal(404);
+    });
+  });
+
   describe('HTTP session lookup', () => {
     it('exposes public session info via /api/session/:code', async () => {
       const { code } = await createSession();

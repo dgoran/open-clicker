@@ -308,6 +308,49 @@ To connect the show-machine client to a remote server:
 SERVER_URL=http://example.com:3000 npm run show-client <SESSION_CODE>
 ```
 
+## HTTP API
+
+Sessions can be created and managed programmatically. All session endpoints require an
+authenticated account: sign in first and reuse the returned cookie.
+
+```bash
+# Sign in and keep the session cookie
+curl -c cookies.txt -X POST http://localhost:3000/api/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"your-password"}'
+
+# Create a session
+curl -b cookies.txt -X POST http://localhost:3000/api/sessions
+```
+
+The create response returns the code, the producer token, and ready-to-share links:
+
+```json
+{
+  "code": "A1B2C3",
+  "locked": false,
+  "requireName": true,
+  "presenterCount": 0,
+  "producerConnected": false,
+  "producerToken": "…64 hex chars…",
+  "presenterUrl": "http://localhost:3000/clicker.html?code=A1B2C3",
+  "cueUrl": "http://localhost:3000/show.html?code=A1B2C3",
+  "producerUrl": "http://localhost:3000/producer.html?code=A1B2C3"
+}
+```
+
+| Method   | Endpoint              | Description                                              |
+| -------- | --------------------- | -------------------------------------------------------- |
+| `POST`   | `/api/sessions`       | Create a session owned by the signed-in account          |
+| `GET`    | `/api/sessions/:code` | Status of a session you own (presenter count, lock, …)   |
+| `DELETE` | `/api/sessions/:code` | End a session you own and disconnect its participants    |
+| `GET`    | `/api/my-sessions`    | List all of your active sessions                         |
+| `GET`    | `/api/session/:code`  | Public join info for a code (no authentication required) |
+
+Sessions created this way are identical to those made in the browser: they persist across
+server restarts, appear in your Control Center, and can be opened at any time via
+`producerUrl`. Requests for a session belonging to another account return `403`.
+
 ## Architecture
 
 - **Server**: Node.js with Express and Socket.io for real-time communication
