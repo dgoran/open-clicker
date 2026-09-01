@@ -121,7 +121,7 @@ Build time: 2-3 minutes depending on your system's speed.
 
 Built file is in the `dist` folder:
 
-- **AppImage**: `dist/Open Clicker Show Machine-1.8.2.AppImage`
+- **AppImage**: `dist/Open Clicker Show Machine-1.8.3.AppImage`
 
 The AppImage is a portable executable that works on most Linux distributions.
 
@@ -177,11 +177,11 @@ fi
 echo ""
 echo "SUCCESS! Build complete."
 echo "Find your app in the 'dist' folder:"
-echo "  - AppImage: dist/Open Clicker Show Machine-1.8.2.AppImage"
+echo "  - AppImage: dist/Open Clicker Show Machine-1.8.3.AppImage"
 echo ""
 echo "To run:"
-echo "  chmod +x dist/Open\ Clicker\ Show\ Machine-1.8.2.AppImage"
-echo "  ./dist/Open\ Clicker\ Show\ Machine-1.8.2.AppImage"
+echo "  chmod +x dist/Open\ Clicker\ Show\ Machine-1.8.3.AppImage"
+echo "  ./dist/Open\ Clicker\ Show\ Machine-1.8.3.AppImage"
 ```
 
 Make it executable and run:
@@ -251,8 +251,8 @@ npm run build:linux
 
 **Solution**: Make the AppImage executable:
 ```bash
-chmod +x "Open Clicker Show Machine-1.8.2.AppImage"
-./Open\ Clicker\ Show\ Machine-1.8.2.AppImage
+chmod +x "Open Clicker Show Machine-1.8.3.AppImage"
+./Open\ Clicker\ Show\ Machine-1.8.3.AppImage
 ```
 
 ### Keyboard injection not working
@@ -292,8 +292,8 @@ chmod +x "Open Clicker Show Machine-1.8.2.AppImage"
 
 3. Run your built AppImage:
    ```bash
-   chmod +x dist/Open\ Clicker\ Show\ Machine-1.8.2.AppImage
-   ./dist/Open\ Clicker\ Show\ Machine-1.8.2.AppImage
+   chmod +x dist/Open\ Clicker\ Show\ Machine-1.8.3.AppImage
+   ./dist/Open\ Clicker\ Show\ Machine-1.8.3.AppImage
    ```
 
 4. Connect to `http://localhost:3000` with the session code
@@ -404,7 +404,7 @@ The app requires X11 for keyboard injection. On Wayland systems:
 
 If issues occur on Wayland, try launching the app with:
 ```bash
-GDK_BACKEND=x11 ./Open\ Clicker\ Show\ Machine-1.8.2.AppImage
+GDK_BACKEND=x11 ./Open\ Clicker\ Show\ Machine-1.8.3.AppImage
 ```
 
 ## Support

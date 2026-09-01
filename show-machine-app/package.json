@@ -1,6 +1,6 @@
 {
   "name": "open-clicker-show-machine",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "description": "Open Clicker Windows Show Machine Client",
   "main": "src/main.js",
   "scripts": {
