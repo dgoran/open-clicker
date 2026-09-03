@@ -19,6 +19,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onFeaturesChanged: (callback) => ipcRenderer.on('features-changed', (event, data) => callback(data)),
   onCaptureState: (callback) => ipcRenderer.on('capture-state', (event, data) => callback(data)),
   onCaptureStats: (callback) => ipcRenderer.on('capture-stats', (event, data) => callback(data)),
-  onNotesState: (callback) => ipcRenderer.on('notes-state', (event, data) => callback(data)),
   onNotesSent: (callback) => ipcRenderer.on('notes-sent', (event, data) => callback(data))
 });

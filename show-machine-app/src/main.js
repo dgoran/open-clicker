@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { io } = require('socket.io-client');
 const { exec, execFile } = require('child_process');
+const { parseSessionTarget } = require('./parse-session-target');
 const crypto = require('crypto');
 
 let mainWindow;
@@ -16,9 +17,8 @@ let showToken = null;
 let sessionFeatures = {};
 
 // Screen casting state
-let captureTimer = null;
-let capturePrefs = { enabled: false, screenId: null, height: 400 };
-let lastCaptureBytes = 0;
+let capturePrefs = null;
+let notesPrefs = null;
 let lastFrameHash = null;
 let captureInFlight = false;
 let lastSendAt = 0;
@@ -42,6 +42,49 @@ function markActivity() {
 
 function recentlyActive() {
   return Date.now() - lastActivityAt < ACTIVITY_WINDOW_MS;
+}
+
+// A self-pacing poll loop: each pass is scheduled only after the previous one
+// finishes, tightly while recently active and slowly otherwise. `running` is
+// the state; the timer handle is just the pending pass.
+function makePoller({ tick, shouldRun, fastGapMs, idleGapMs, stateChannel, onStart, onStop }) {
+  let running = false;
+  let timer = null;
+
+  function schedule(delay) {
+    timer = setTimeout(async () => {
+      await tick();
+      if (running && shouldRun()) {
+        schedule(recentlyActive() ? fastGapMs : idleGapMs);
+      } else {
+        stop();
+      }
+    }, delay);
+  }
+
+  function start() {
+    if (running) return;
+    if (onStart && onStart() === false) return;
+    running = true;
+    markActivity();
+    schedule(0);
+    send(stateChannel, { active: true });
+  }
+
+  function stop() {
+    running = false;
+    clearTimeout(timer);
+    timer = null;
+    if (onStop) onStop();
+    send(stateChannel, { active: false });
+  }
+
+  return {
+    start,
+    stop,
+    sync() { (shouldRun() ? start : stop)(); },
+    get active() { return running; }
+  };
 }
 
 try {
@@ -76,29 +119,25 @@ function savePreferences(patch) {
   }
 }
 
+// Speaker notes come from PowerPoint/Keynote automation, which Linux lacks.
+const NOTES_SUPPORTED = process.platform !== 'linux';
+
+// Restore the casting and notes preferences at startup, so a switch that was
+// on last time is on again without the renderer having to push it back.
+{
+  const saved = loadPreferences();
+  capturePrefs = {
+    enabled: !!saved.captureEnabled,
+    screenId: saved.captureScreenId || null,
+    height: saved.captureHeight || 400
+  };
+  notesPrefs = { enabled: !!saved.notesEnabled };
+}
+
 function send(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(channel, payload);
   }
-}
-
-// Accepts a bare code ("A1B2C3") or a pasted cue/presenter link
-// ("https://host/show.html?code=A1B2C3"), returning both parts.
-function parseSessionInput(input, fallbackServerUrl) {
-  const value = (input || '').trim();
-  if (!value) return { serverUrl: fallbackServerUrl, sessionCode: '' };
-
-  const match = value.match(/^https?:\/\/[^\s]+/i);
-  if (match) {
-    try {
-      const url = new URL(match[0]);
-      const code = url.searchParams.get('code') || '';
-      return { serverUrl: url.origin, sessionCode: code.trim().toUpperCase() };
-    } catch (err) {
-      // fall through to treating the value as a plain code
-    }
-  }
-  return { serverUrl: fallbackServerUrl, sessionCode: value.toUpperCase() };
 }
 
 function activateApp(targetApp) {
@@ -230,7 +269,6 @@ async function captureAndSend() {
       return;
     }
     lastFrameHash = hash;
-    lastCaptureBytes = jpeg.length;
 
     socket.emit('screenshot-upload', {
       code: connection.sessionCode,
@@ -243,7 +281,7 @@ async function captureAndSend() {
     lastSendAt = now;
     send('capture-stats', {
       height,
-      kbPerSecond: Math.round(lastCaptureBytes / 1024 / elapsedS)
+      kbPerSecond: Math.round(jpeg.length / 1024 / elapsedS)
     });
   } catch (error) {
     console.error('Screen capture error:', error);
@@ -258,49 +296,28 @@ function shouldCapture() {
   return capturePrefs.enabled && !!sessionFeatures.screenshotEnabled && !!showToken;
 }
 
-// Each pass waits for the previous one to finish, so a slow capture paces
-// itself instead of queueing up behind a fixed timer.
-function scheduleCapture() {
-  if (!shouldCapture()) return;
-  captureTimer = setTimeout(async () => {
-    await captureAndSend();
-    if (captureTimer) scheduleCapture();
-  }, recentlyActive() ? CAPTURE_FAST_GAP_MS : CAPTURE_IDLE_GAP_MS);
-}
-
-function startCapture() {
-  if (captureTimer) return;
-  if (screenCaptureBlocked()) {
-    send('error', {
-      message: 'Screen Recording permission is required. Grant it in System Settings > Privacy & Security > Screen Recording, then restart the app.'
-    });
-    return;
+const capturePoller = makePoller({
+  tick: captureAndSend,
+  shouldRun: shouldCapture,
+  fastGapMs: CAPTURE_FAST_GAP_MS,
+  idleGapMs: CAPTURE_IDLE_GAP_MS,
+  stateChannel: 'capture-state',
+  onStart() {
+    if (screenCaptureBlocked()) {
+      send('error', {
+        message: 'Screen Recording permission is required. Grant it in System Settings > Privacy & Security > Screen Recording, then restart the app.'
+      });
+      return false;
+    }
+  },
+  onStop() {
+    lastFrameHash = null;
+    lastSendAt = 0;
   }
-  markActivity();
-  captureTimer = true;
-  captureAndSend().then(() => {
-    if (captureTimer) scheduleCapture();
-  });
-  send('capture-state', { active: true });
-}
+});
 
-function stopCapture() {
-  lastFrameHash = null;
-  lastSendAt = 0;
-  if (captureTimer) {
-    if (captureTimer !== true) clearTimeout(captureTimer);
-    captureTimer = null;
-  }
-  send('capture-state', { active: false });
-}
-
-function syncCapture() {
-  if (shouldCapture()) {
-    startCapture();
-  } else {
-    stopCapture();
-  }
-}
+function stopCapture() { capturePoller.stop(); }
+function syncCapture() { capturePoller.sync(); }
 
 // --- Speaker notes --------------------------------------------------------
 
@@ -398,13 +415,11 @@ function readSpeakerNotes(targetApp) {
   return Promise.resolve({ ok: false, error: 'not supported on this platform' });
 }
 
-let notesTimer = null;
-let notesPrefs = { enabled: false };
 let lastSentNotes = null;
 let lastNotesError = null;
 
 const NOTES_FAST_GAP_MS = 100;
-const NOTES_IDLE_GAP_MS = 900;
+const NOTES_IDLE_GAP_MS = 3000;
 
 function shouldSendNotes() {
   return notesPrefs.enabled && !!sessionFeatures.speakerNotesEnabled && !!showToken;
@@ -440,44 +455,32 @@ async function pollSpeakerNotes() {
   send('notes-sent', { notes });
 }
 
-function scheduleNotes() {
-  if (!shouldSendNotes()) return;
-  notesTimer = setTimeout(async () => {
-    await pollSpeakerNotes();
-    if (notesTimer) scheduleNotes();
-  }, recentlyActive() ? NOTES_FAST_GAP_MS : NOTES_IDLE_GAP_MS);
-}
-
-function startNotes() {
-  if (notesTimer) return;
-  if (process.platform === 'linux') {
-    send('error', { message: 'Speaker notes require PowerPoint or Keynote and are not available on Linux.' });
-    return;
+const notesPoller = makePoller({
+  tick: pollSpeakerNotes,
+  shouldRun: shouldSendNotes,
+  fastGapMs: NOTES_FAST_GAP_MS,
+  idleGapMs: NOTES_IDLE_GAP_MS,
+  stateChannel: 'notes-state',
+  onStart() {
+    if (!NOTES_SUPPORTED) {
+      send('error', { message: 'Speaker notes require PowerPoint or Keynote and are not available on Linux.' });
+      return false;
+    }
+    lastSentNotes = null;
+    lastNotesError = null;
   }
-  lastSentNotes = null;
-  lastNotesError = null;
-  markActivity();
-  notesTimer = true;
-  pollSpeakerNotes().then(() => {
-    if (notesTimer) scheduleNotes();
-  });
-  send('notes-state', { active: true });
-}
+});
 
-function stopNotes() {
-  if (notesTimer) {
-    if (notesTimer !== true) clearTimeout(notesTimer);
-    notesTimer = null;
-  }
-  send('notes-state', { active: false });
-}
+function stopNotes() { notesPoller.stop(); }
+function syncNotes() { notesPoller.sync(); }
 
-function syncNotes() {
-  if (shouldSendNotes()) {
-    startNotes();
-  } else {
-    stopNotes();
-  }
+// Everything tied to the current session; called whenever we leave it for
+// any reason so the next join starts clean.
+function leaveSession() {
+  stopCapture();
+  stopNotes();
+  showToken = null;
+  sessionFeatures = {};
 }
 
 // --- Window ---------------------------------------------------------------
@@ -532,10 +535,11 @@ ipcMain.handle('load-preferences', async () => {
   return {
     serverUrl: prefs.serverUrl || 'http://localhost:3000',
     targetApp: prefs.targetApp || 'focused',
-    captureEnabled: prefs.captureEnabled || false,
-    captureHeight: prefs.captureHeight || 400,
-    captureScreenId: prefs.captureScreenId || null,
-    notesEnabled: prefs.notesEnabled || false
+    captureEnabled: capturePrefs.enabled,
+    captureHeight: capturePrefs.height,
+    captureScreenId: capturePrefs.screenId,
+    notesEnabled: notesPrefs.enabled,
+    notesSupported: NOTES_SUPPORTED
   };
 });
 
@@ -559,7 +563,7 @@ ipcMain.handle('set-capture', async (event, prefs) => {
   // Restart so a resolution or screen change takes effect immediately.
   stopCapture();
   syncCapture();
-  return { success: true, active: !!captureTimer, screenshotEnabled: !!sessionFeatures.screenshotEnabled };
+  return { success: true, active: capturePoller.active };
 });
 
 ipcMain.handle('set-notes-forwarding', async (event, prefs) => {
@@ -567,12 +571,7 @@ ipcMain.handle('set-notes-forwarding', async (event, prefs) => {
   savePreferences({ notesEnabled: notesPrefs.enabled });
   stopNotes();
   syncNotes();
-  return {
-    success: true,
-    active: !!notesTimer,
-    speakerNotesEnabled: !!sessionFeatures.speakerNotesEnabled,
-    supported: process.platform !== 'linux'
-  };
+  return { success: true, active: notesPoller.active, supported: NOTES_SUPPORTED };
 });
 
 ipcMain.handle('send-command', async (event, direction) => {
@@ -593,10 +592,7 @@ ipcMain.handle('connect', async (event, { serverUrl, sessionCode, targetApp }) =
       socket.disconnect();
       socket = null;
     }
-    stopCapture();
-    stopNotes();
-    showToken = null;
-    sessionFeatures = {};
+    leaveSession();
 
     // Key injection is optional: without robotjs the app still works as a cue
     // display, manual clicker, screen caster, and speaker-notes bridge.
@@ -606,7 +602,7 @@ ipcMain.handle('connect', async (event, { serverUrl, sessionCode, targetApp }) =
       });
     }
 
-    const parsed = parseSessionInput(sessionCode, serverUrl);
+    const parsed = parseSessionTarget(sessionCode, serverUrl);
     if (!parsed.sessionCode) {
       return { success: false, error: 'Enter a session code or paste a cue link' };
     }
@@ -669,9 +665,7 @@ ipcMain.handle('connect', async (event, { serverUrl, sessionCode, targetApp }) =
 
       socket.on('session-ended', () => {
         console.log('Session ended');
-        stopCapture();
-        stopNotes();
-        showToken = null;
+        leaveSession();
         send('connection-status', {
           status: 'ended',
           message: 'Session ended by producer.'
@@ -698,9 +692,7 @@ ipcMain.handle('connect', async (event, { serverUrl, sessionCode, targetApp }) =
 
       socket.on('disconnect', () => {
         console.log('Disconnected');
-        stopCapture();
-        stopNotes();
-        showToken = null;
+        leaveSession();
         send('connection-status', { status: 'reconnecting', message: 'Connection lost. Reconnecting…' });
       });
 
@@ -712,10 +704,7 @@ ipcMain.handle('connect', async (event, { serverUrl, sessionCode, targetApp }) =
 });
 
 ipcMain.handle('disconnect', async () => {
-  stopCapture();
-  stopNotes();
-  showToken = null;
-  sessionFeatures = {};
+  leaveSession();
   if (socket) {
     socket.removeAllListeners();
     socket.disconnect();

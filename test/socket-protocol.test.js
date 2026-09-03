@@ -53,6 +53,11 @@ describe('Socket Protocol (end-to-end)', function () {
     });
   }
 
+  // Requests as the signed-in producer. Content-Type is harmless on GET.
+  function authHeaders() {
+    return { Cookie: authCookie, 'X-Forwarded-Proto': 'https', 'Content-Type': 'application/json' };
+  }
+
   async function createSession() {
     const producer = connectAuthed();
     await once(producer, 'connect');
@@ -461,7 +466,7 @@ describe('Socket Protocol (end-to-end)', function () {
 
       const res = await request({
         path: '/api/my-sessions', method: 'GET',
-        headers: { Cookie: authCookie, 'X-Forwarded-Proto': 'https' }
+        headers: authHeaders()
       });
       expect(res.statusCode).to.equal(200);
       const mine = res.body.sessions.find((s) => s.code === code);
@@ -482,7 +487,7 @@ describe('Socket Protocol (end-to-end)', function () {
       const ended = once(clicker, 'session-ended');
       const res = await request({
         path: `/api/sessions/${code}`, method: 'DELETE',
-        headers: { Cookie: authCookie, 'X-Forwarded-Proto': 'https' }
+        headers: authHeaders()
       });
       expect(res.statusCode).to.equal(200);
       await ended;
@@ -497,8 +502,6 @@ describe('Socket Protocol (end-to-end)', function () {
   });
 
   describe('session HTTP API', () => {
-    const authHeaders = () => ({ Cookie: authCookie, 'X-Forwarded-Proto': 'https' });
-
     it('creates a session owned by the caller, usable over sockets', async () => {
       const res = await request({ path: '/api/sessions', method: 'POST', headers: authHeaders() });
       expect(res.statusCode).to.equal(201);
@@ -576,8 +579,6 @@ describe('Socket Protocol (end-to-end)', function () {
   });
 
   describe('session control API', () => {
-    const authHeaders = () => ({ Cookie: authCookie, 'X-Forwarded-Proto': 'https', 'Content-Type': 'application/json' });
-
     it('drives lock, notes, timer and features, and clients see each change', async () => {
       const { code } = await createSession();
       const { clicker } = await joinClicker(code);

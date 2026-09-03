@@ -30,12 +30,14 @@ function getDbPath() {
 }
 
 let db = null;
+let stmtCache = new Map();
 
 // Lazily (re)opens, resolving the path each time, so a test file that calls
 // closeDatabase() and repoints USERS_DB can't break later files sharing this
 // cached module.
 function getDb() {
   if (!db || !db.open) {
+    stmtCache = new Map();
     const dbPath = getDbPath();
     const dir = path.dirname(dbPath);
     if (!fs.existsSync(dir)) {
@@ -69,9 +71,25 @@ function getDb() {
         expiresAt INTEGER NOT NULL
       );
     `);
+    // WAL lets reads proceed during writes and makes each commit far cheaper
+    // than the default rollback journal; NORMAL sync is safe under WAL.
+    db.pragma('journal_mode = WAL');
+    db.pragma('synchronous = NORMAL');
     console.log(`Database initialized at ${dbPath}`);
   }
   return db;
+}
+
+// Prepared statements are cached per open handle. better-sqlite3 compiles on
+// every prepare(), and the login-session store runs on every request.
+function stmt(sql) {
+  const handle = getDb();
+  let prepared = stmtCache.get(sql);
+  if (!prepared) {
+    prepared = handle.prepare(sql);
+    stmtCache.set(sql, prepared);
+  }
+  return prepared;
 }
 
 function closeDatabase() {
@@ -81,28 +99,28 @@ function closeDatabase() {
 }
 
 function getUser(email) {
-  return getDb().prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  return stmt('SELECT * FROM users WHERE email = ?').get(email.toLowerCase().trim());
 }
 
 function getAllUsers() {
-  return getDb().prepare('SELECT userId, email, createdAt FROM users ORDER BY createdAt DESC').all();
+  return stmt('SELECT userId, email, createdAt FROM users ORDER BY createdAt DESC').all();
 }
 
 function createUser(email, passwordHash) {
   const userId = crypto.randomBytes(16).toString('hex');
   const emailLower = email.toLowerCase().trim();
   const createdAt = Date.now();
-  getDb().prepare('INSERT INTO users (userId, email, passwordHash, createdAt) VALUES (?, ?, ?, ?)')
+  stmt('INSERT INTO users (userId, email, passwordHash, createdAt) VALUES (?, ?, ?, ?)')
     .run(userId, emailLower, passwordHash, createdAt);
   return { userId, email: emailLower, createdAt };
 }
 
 function deleteUser(userId) {
-  return getDb().prepare('DELETE FROM users WHERE userId = ?').run(userId).changes > 0;
+  return stmt('DELETE FROM users WHERE userId = ?').run(userId).changes > 0;
 }
 
 function getUserCount() {
-  return getDb().prepare('SELECT COUNT(*) as count FROM users').get().count;
+  return stmt('SELECT COUNT(*) as count FROM users').get().count;
 }
 
 const sessions = new Map();
@@ -117,7 +135,7 @@ const DEFAULT_FEATURES = {
 };
 
 function persistSession(s) {
-  getDb().prepare(`
+  stmt(`
     INSERT INTO sessions (code, userId, producerToken, locked, requireName, notes, timer, timerStartedAt, features, createdAt, lastActivityAt)
     VALUES (@code, @userId, @producerToken, @locked, @requireName, @notes, @timer, @timerStartedAt, @features, @createdAt, @lastActivityAt)
     ON CONFLICT(code) DO UPDATE SET
@@ -149,11 +167,25 @@ function touchSession(s) {
   }
 }
 
+// Fields that exist only in memory: connected sockets and the last frame.
+// Every session, new or restored from the database, starts with this set.
+function withRuntimeState(fields) {
+  return {
+    producer: null,
+    clickers: new Map(),
+    showClients: new Map(),
+    presenters: new Map(),
+    screenshot: null,
+    lastScreenshotTime: null,
+    ...fields
+  };
+}
+
 // Single source of truth for new sessions, shared by the socket handler and
 // the HTTP API so both produce identical, persistable records.
 function createSessionRecord(userId, producerSocketId = null) {
   const now = Date.now();
-  const session = {
+  const session = withRuntimeState({
     code: generateCode(),
     locked: false,
     requireName: true,
@@ -163,15 +195,10 @@ function createSessionRecord(userId, producerSocketId = null) {
     producer: producerSocketId,
     producerToken: generateToken(),
     userId,
-    clickers: new Map(),
-    showClients: new Map(),
-    presenters: new Map(),
     features: { ...DEFAULT_FEATURES },
-    screenshot: null,
-    lastScreenshotTime: null,
     createdAt: now,
     lastActivityAt: now
-  };
+  });
   sessions.set(session.code, session);
   persistSession(session);
   return session;
@@ -268,10 +295,8 @@ function opSendMessage(session, targetId, message) {
   let delivered = 0;
 
   if (targetId === 'all' || !targetId) {
-    for (const clickerId of session.clickers.keys()) {
-      io.to(clickerId).emit('message-received', messageData);
-      delivered += 1;
-    }
+    io.to([...session.clickers.keys()]).emit('message-received', messageData);
+    delivered = session.clickers.size;
   } else if (session.clickers.has(targetId)) {
     io.to(targetId).emit('message-received', messageData);
     delivered = 1;
@@ -287,9 +312,26 @@ function opAdvance(session, direction) {
   console.log(`Session ${session.code}: ${direction}`);
 }
 
+function sessionDetail(s) {
+  return {
+    ...sessionSummary(s),
+    notes: s.notes,
+    timer: s.timer,
+    timerStartedAt: s.timerStartedAt,
+    features: s.features
+  };
+}
+
+// Drops session rows past the TTL and expired logins. Used at startup and by
+// the hourly sweep.
+function purgeExpiredRows(sessionCutoff) {
+  stmt('DELETE FROM sessions WHERE lastActivityAt < ?').run(sessionCutoff);
+  stmt('DELETE FROM login_sessions WHERE expiresAt < ?').run(Date.now());
+}
+
 function endSession(code, reason) {
   sessions.delete(code);
-  getDb().prepare('DELETE FROM sessions WHERE code = ?').run(code);
+  stmt('DELETE FROM sessions WHERE code = ?').run(code);
   io.to(code).emit('session-ended');
   console.log(`Session ${code} ended${reason ? ` (${reason})` : ''}`);
 }
@@ -297,31 +339,24 @@ function endSession(code, reason) {
 // Restores persisted sessions into memory (producer offline, no participants).
 // Called at startup so sessions survive server restarts.
 function loadPersistedSessions() {
-  const cutoff = Date.now() - SESSION_TTL_MS;
-  getDb().prepare('DELETE FROM sessions WHERE lastActivityAt < ?').run(cutoff);
+  purgeExpiredRows(Date.now() - SESSION_TTL_MS);
 
-  for (const row of getDb().prepare('SELECT * FROM sessions').all()) {
+  for (const row of stmt('SELECT * FROM sessions').all()) {
     if (sessions.has(row.code)) continue;
-    sessions.set(row.code, {
+    sessions.set(row.code, withRuntimeState({
       code: row.code,
       locked: !!row.locked,
       requireName: !!row.requireName,
       notes: row.notes,
       timer: row.timer,
       timerStartedAt: row.timerStartedAt,
-      producer: null,
       producerToken: row.producerToken,
       userId: row.userId,
-      clickers: new Map(),
-      showClients: new Map(),
-      presenters: new Map(),
       features: { ...DEFAULT_FEATURES, ...JSON.parse(row.features) },
-      screenshot: null,
-      lastScreenshotTime: null,
       createdAt: row.createdAt,
       lastActivityAt: row.lastActivityAt,
       lastPersistedAt: Date.now()
-    });
+    }));
   }
   if (sessions.size > 0) {
     console.log(`Restored ${sessions.size} session(s) from database`);
@@ -335,8 +370,7 @@ const ttlSweep = setInterval(() => {
       endSession(code, 'expired after 24h of inactivity');
     }
   }
-  getDb().prepare('DELETE FROM sessions WHERE lastActivityAt < ?').run(cutoff);
-  getDb().prepare('DELETE FROM login_sessions WHERE expiresAt < ?').run(Date.now());
+  purgeExpiredRows(cutoff);
 }, 60 * 60 * 1000);
 ttlSweep.unref();
 
@@ -355,10 +389,26 @@ function generateToken() {
 // SQLite-backed store so logins survive server restarts (the default
 // MemoryStore is wiped with the process). Requires SESSION_SECRET to be set
 // for cookies to stay valid across restarts.
+const LOGIN_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const LOGIN_TOUCH_INTERVAL_MS = 60 * 60 * 1000;
+
+function loginExpiry(sess) {
+  return sess.cookie && sess.cookie.expires
+    ? new Date(sess.cookie.expires).getTime()
+    : Date.now() + LOGIN_MAX_AGE_MS;
+}
+
 class SqliteSessionStore extends session.Store {
+  constructor() {
+    super();
+    // sid -> last time we extended its expiry, so a busy producer does not
+    // write a row on every request.
+    this.lastTouched = new Map();
+  }
+
   get(sid, callback) {
     try {
-      const row = getDb().prepare('SELECT data FROM login_sessions WHERE sid = ? AND expiresAt > ?').get(sid, Date.now());
+      const row = stmt('SELECT data FROM login_sessions WHERE sid = ? AND expiresAt > ?').get(sid, Date.now());
       callback(null, row ? JSON.parse(row.data) : null);
     } catch (error) {
       callback(error);
@@ -367,13 +417,11 @@ class SqliteSessionStore extends session.Store {
 
   set(sid, sess, callback) {
     try {
-      const expiresAt = sess.cookie && sess.cookie.expires
-        ? new Date(sess.cookie.expires).getTime()
-        : Date.now() + 7 * 24 * 60 * 60 * 1000;
-      getDb().prepare(`
+      stmt(`
         INSERT INTO login_sessions (sid, data, expiresAt) VALUES (?, ?, ?)
         ON CONFLICT(sid) DO UPDATE SET data = excluded.data, expiresAt = excluded.expiresAt
-      `).run(sid, JSON.stringify(sess), expiresAt);
+      `).run(sid, JSON.stringify(sess), loginExpiry(sess));
+      this.lastTouched.set(sid, Date.now());
       callback(null);
     } catch (error) {
       callback(error);
@@ -382,15 +430,29 @@ class SqliteSessionStore extends session.Store {
 
   destroy(sid, callback) {
     try {
-      getDb().prepare('DELETE FROM login_sessions WHERE sid = ?').run(sid);
+      stmt('DELETE FROM login_sessions WHERE sid = ?').run(sid);
+      this.lastTouched.delete(sid);
       callback(null);
     } catch (error) {
       callback(error);
     }
   }
 
+  // express-session calls this on every request that read the session
+  // without changing it. Sliding the expiry is only worth a write once an
+  // hour, not once per static asset.
   touch(sid, sess, callback) {
-    this.set(sid, sess, callback);
+    const now = Date.now();
+    if (now - (this.lastTouched.get(sid) || 0) < LOGIN_TOUCH_INTERVAL_MS) {
+      return callback(null);
+    }
+    try {
+      stmt('UPDATE login_sessions SET expiresAt = ? WHERE sid = ?').run(loginExpiry(sess), sid);
+      this.lastTouched.set(sid, now);
+      callback(null);
+    } catch (error) {
+      callback(error);
+    }
   }
 }
 
@@ -402,16 +464,18 @@ const sessionMiddleware = session({
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000
+    maxAge: LOGIN_MAX_AGE_MS
   }
 });
 
 app.set('trust proxy', 1);
 
+// Static assets first: they never read the session, and the SQLite-backed
+// store would otherwise do a read (and possibly a write) per file.
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(cookieParser());
 app.use(sessionMiddleware);
-app.use(express.static(path.join(__dirname, 'public')));
 
 io.engine.use(sessionMiddleware);
 
@@ -620,11 +684,7 @@ app.get('/api/sessions/:code/detail', requireAuth, (req, res) => {
   const session = ownedSession(req, res);
   if (!session) return;
   res.json({
-    ...sessionSummary(session),
-    notes: session.notes,
-    timer: session.timer,
-    timerStartedAt: session.timerStartedAt,
-    features: session.features,
+    ...sessionDetail(session),
     presenters: presenterList(session),
     showClientCount: session.showClients.size
   });
@@ -654,13 +714,7 @@ app.patch('/api/sessions/:code', requireAuth, (req, res) => {
   }
   if (resetTimer) opResetTimer(session);
 
-  res.json({
-    ...sessionSummary(session),
-    notes: session.notes,
-    timer: session.timer,
-    timerStartedAt: session.timerStartedAt,
-    features: session.features
-  });
+  res.json(sessionDetail(session));
 });
 
 // Advance the deck. The owner drives the session, so this is not blocked by
@@ -745,13 +799,14 @@ function notifyPresentersUpdated(session) {
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
 
-  function fail(message) {
-    socket.emit('error', { message });
+  // `code` lets clients branch without matching the English message.
+  function fail(message, code = 'ERROR') {
+    socket.emit('error', { message, code });
     return null;
   }
 
   function getSession(code) {
-    return sessions.get(code) || fail('Session not found');
+    return sessions.get(code) || fail('Session not found', 'SESSION_NOT_FOUND');
   }
 
   // Returns the session only if this socket is its producer with a valid token.
@@ -759,7 +814,7 @@ io.on('connection', (socket) => {
     const session = getSession(code);
     if (!session) return null;
     if (session.producer !== socket.id || session.producerToken !== token) {
-      return fail('Unauthorized: Invalid producer token');
+      return fail('Unauthorized: Invalid producer token', 'UNAUTHORIZED');
     }
     return session;
   }
@@ -767,7 +822,7 @@ io.on('connection', (socket) => {
   socket.on('create-session', () => {
     const userId = socket.request.session?.userId;
     if (!userId) {
-      return fail('Authentication required to create session');
+      return fail('Authentication required to create session', 'UNAUTHORIZED');
     }
 
     const session = createSessionRecord(userId, socket.id);
@@ -829,10 +884,10 @@ io.on('connection', (socket) => {
 
     const userId = socket.request.session?.userId;
     if (!userId) {
-      return fail('Authentication required to reclaim session');
+      return fail('Authentication required to reclaim session', 'UNAUTHORIZED');
     }
     if (session.userId !== userId) {
-      return fail('Unauthorized: You did not create this session');
+      return fail('Unauthorized: You did not create this session', 'UNAUTHORIZED');
     }
 
     session.producer = socket.id;
@@ -881,7 +936,7 @@ io.on('connection', (socket) => {
     const isClicker = session.clickers.get(socket.id) === token;
     const isShowClient = session.showClients.get(socket.id) === token;
     if (!isClicker && !isShowClient) {
-      return fail('Unauthorized: Invalid clicker token');
+      return fail('Unauthorized: Invalid clicker token', 'UNAUTHORIZED');
     }
     if (session.locked) {
       return fail('Session is locked');
@@ -926,7 +981,7 @@ io.on('connection', (socket) => {
     if (!session) return;
 
     if (session.clickers.get(socket.id) !== token) {
-      return fail('Unauthorized: Invalid clicker token');
+      return fail('Unauthorized: Invalid clicker token', 'UNAUTHORIZED');
     }
     if (!displayName || displayName.trim() === '') {
       return fail('Display name cannot be empty');
@@ -957,15 +1012,13 @@ io.on('connection', (socket) => {
     if (!session) return;
 
     if (session.showClients.get(socket.id) !== token) {
-      return fail('Unauthorized: Invalid show client token');
+      return fail('Unauthorized: Invalid show client token', 'UNAUTHORIZED');
     }
 
     if (session.features.screenshotEnabled) {
       session.screenshot = screenshot;
       session.lastScreenshotTime = Date.now();
-      for (const clickerId of session.clickers.keys()) {
-        io.to(clickerId).emit('screenshot-updated', { screenshot });
-      }
+      io.to([...session.clickers.keys()]).emit('screenshot-updated', { screenshot });
     }
   });
 
@@ -976,18 +1029,14 @@ io.on('connection', (socket) => {
     if (!session) return;
 
     if (session.showClients.get(socket.id) !== token) {
-      return fail('Unauthorized: Invalid show client token');
+      return fail('Unauthorized: Invalid show client token', 'UNAUTHORIZED');
     }
     if (!session.features.speakerNotesEnabled) {
       return;
     }
-    if (session.notes === notes) {
-      return;
+    if (session.notes !== notes) {
+      opSetNotes(session, notes);
     }
-
-    session.notes = notes;
-    persistSession(session);
-    io.to(code).emit('notes-changed', { notes });
   });
 
   socket.on('send-message', ({ code, token, targetId, message }) => {
@@ -1006,7 +1055,7 @@ io.on('connection', (socket) => {
     if (!session) return;
 
     if (session.clickers.get(socket.id) !== token) {
-      return fail('Unauthorized: Invalid clicker token');
+      return fail('Unauthorized: Invalid clicker token', 'UNAUTHORIZED');
     }
     if (!session.features.laserPointerEnabled) {
       return;

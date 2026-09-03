@@ -2,23 +2,7 @@
 
 const { io } = require('socket.io-client');
 
-// Accepts a bare code or a pasted cue link (http://host/show.html?code=XXXXXX).
-function parseTarget(input, fallbackServerUrl) {
-  const value = (input || '').trim();
-  const match = value.match(/^https?:\/\/\S+/i);
-  if (match) {
-    try {
-      const url = new URL(match[0]);
-      const code = url.searchParams.get('code');
-      if (code) {
-        return { serverUrl: url.origin, sessionCode: code.trim().toUpperCase() };
-      }
-    } catch (err) {
-      // fall through and treat the argument as a plain code
-    }
-  }
-  return { serverUrl: fallbackServerUrl, sessionCode: value.toUpperCase() };
-}
+const { parseSessionTarget } = require('./show-machine-app/src/parse-session-target');
 
 function main() {
   let robot;
@@ -39,10 +23,15 @@ function main() {
     process.exit(1);
   }
 
-  const { serverUrl: SERVER_URL, sessionCode: SESSION_CODE } = parseTarget(
+  const { serverUrl: SERVER_URL, sessionCode: SESSION_CODE } = parseSessionTarget(
     argument,
     process.env.SERVER_URL || 'http://localhost:3000'
   );
+
+  if (!SESSION_CODE) {
+    console.error('No session code found in the argument. Pass a 6-character code or a link containing ?code=.');
+    process.exit(1);
+  }
 
   console.log('Open Clicker - Show Machine Client');
   console.log('===================================');
@@ -100,11 +89,11 @@ function main() {
     process.exit(0);
   });
 
-  socket.on('error', ({ message }) => {
+  socket.on('error', ({ message, code }) => {
     console.error('Error:', message);
     // A missing session or rejected token is fatal; anything transient is
     // handled by the reconnect logic.
-    if (/not found|Unauthorized/i.test(message)) {
+    if (code === 'SESSION_NOT_FOUND' || code === 'UNAUTHORIZED') {
       process.exit(1);
     }
   });
@@ -135,4 +124,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { parseTarget };
+module.exports = { parseTarget: parseSessionTarget };

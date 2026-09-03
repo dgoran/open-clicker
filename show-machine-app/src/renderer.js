@@ -93,15 +93,10 @@ window.addEventListener('DOMContentLoaded', async () => {
   qualitySlider.value = sliderIndex === -1 ? 1 : sliderIndex;
   qualityRes.textContent = `${HEIGHTS[qualitySlider.value]}p`;
 
-  if (platform === 'linux') {
+  if (!prefs.notesSupported) {
     notesToggle.disabled = true;
-    notesHint.textContent = 'Speaker notes require PowerPoint or Keynote (not available on Linux).';
+    notesHint.textContent = 'Speaker notes require PowerPoint or Keynote (not available on this platform).';
   }
-
-  // Restoring the checkboxes is not enough: the main process starts with both
-  // features off, so push the restored preferences through as well.
-  pushCapturePrefs();
-  window.electronAPI.setNotesForwarding({ enabled: notesToggle.checked });
 
   refreshFeatureHints();
   loadScreens();
@@ -173,10 +168,8 @@ connectBtn.addEventListener('click', async () => {
     );
 
     if (result.success) {
-      setConnected(true);
       serverInput.value = result.serverUrl;
       sessionInput.value = result.code;
-      setStatus(`Joined ${result.code}`, 'live');
       log(`Joined session ${result.code}`, 'success');
     } else {
       setStatus(result.error || 'Failed to connect', 'err');

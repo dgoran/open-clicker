@@ -840,15 +840,23 @@
     // stays put (blank) on slides with no notes instead of appearing and
     // vanishing as the deck moves. Producer-typed notes still show it when
     // the toggle is off.
+    // Shows or hides a resizable panel together with its drag handle. The
+    // click buttons get re-budgeted only when visibility actually changes.
+    function setPanelVisible(panelId, handleId, visible) {
+      const panel = document.getElementById(panelId);
+      // Computed, not inline: the initial hidden state can come from the
+      // stylesheet, where the inline style is still empty.
+      const wasVisible = getComputedStyle(panel).display !== 'none';
+      if (wasVisible === visible) return;
+      panel.style.display = visible ? 'flex' : 'none';
+      document.getElementById(handleId).style.display = visible ? 'flex' : 'none';
+      clampPanels();
+    }
+
     function applyNotesVisibility() {
-      const notesSection = document.getElementById('notesSection');
-      const notesResize = document.getElementById('notesResize');
       const hasText = !!document.getElementById('notesContent').textContent.trim();
       const visible = features.speakerNotesEnabled ? showNotesPref : hasText;
-
-      notesSection.style.display = visible ? 'flex' : 'none';
-      notesResize.style.display = visible ? 'flex' : 'none';
-      clampPanels();
+      setPanelVisible('notesSection', 'notesResize', visible);
     }
 
     function updateClock() {
@@ -897,8 +905,8 @@
       document.getElementById('row-notes').style.display = features.speakerNotesEnabled ? 'flex' : 'none';
 
       // A feature switched off mid-session must not leave its panel on screen.
-      if (!features.screenshotEnabled && screenshotVisible) toggleScreenshot();
-      if (!features.laserPointerEnabled && laserActive) toggleLaser();
+      if (!features.screenshotEnabled) setScreenshotVisible(false);
+      if (!features.laserPointerEnabled) setLaser(false);
     }
 
     function setToggle(id, on) {
@@ -1011,11 +1019,13 @@
       let dragging = false;
       let startY = 0;
       let startHeight = 0;
+      let maxPx = 0;
 
       handle.addEventListener('pointerdown', (e) => {
         dragging = true;
         startY = e.clientY;
         startHeight = panel.getBoundingClientRect().height;
+        maxPx = maxHeightFor(panel);
         try {
           handle.setPointerCapture(e.pointerId);
         } catch (error) {
@@ -1028,14 +1038,14 @@
         if (!dragging) return;
         // Dragging down grows a panel above the handle and shrinks one below.
         const delta = edge === 'below' ? startY - e.clientY : e.clientY - startY;
-        const height = Math.min(maxHeightFor(panel), Math.max(minPx, startHeight + delta));
+        const height = Math.min(maxPx, Math.max(minPx, startHeight + delta));
         panel.style.height = height + 'px';
-        localStorage.setItem(storageKey, Math.round(height));
       });
 
       const endDrag = (e) => {
         if (!dragging) return;
         dragging = false;
+        localStorage.setItem(storageKey, Math.round(parseFloat(panel.style.height)));
         try {
           handle.releasePointerCapture(e.pointerId);
         } catch (error) {
@@ -1070,17 +1080,19 @@
       loader.src = screenshot;
     }
 
-    function toggleScreenshot() {
-      screenshotVisible = !screenshotVisible;
-
-      document.getElementById('screenshotPanel').style.display = screenshotVisible ? 'flex' : 'none';
-      document.getElementById('screenshotResize').style.display = screenshotVisible ? 'flex' : 'none';
-      setToggle('toggle-screenshot', screenshotVisible);
-      clampPanels();
+    function setScreenshotVisible(visible) {
+      screenshotVisible = visible;
+      setPanelVisible('screenshotPanel', 'screenshotResize', visible);
+      setToggle('toggle-screenshot', visible);
     }
 
-    function toggleLaser() {
-      laserActive = !laserActive;
+    function toggleScreenshot() {
+      setScreenshotVisible(!screenshotVisible);
+    }
+
+    function setLaser(active) {
+      if (active === laserActive) return;
+      laserActive = active;
       setToggle('toggle-laser', laserActive);
 
       if (laserActive) {
@@ -1091,6 +1103,10 @@
         document.removeEventListener('touchmove', handleLaserMove);
         socket.emit('laser-pointer', { code: sessionCode, token: clickerToken, x: 0, y: 0, active: false });
       }
+    }
+
+    function toggleLaser() {
+      setLaser(!laserActive);
     }
 
     function handleLaserMove(e) {

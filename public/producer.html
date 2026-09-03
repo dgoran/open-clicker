@@ -377,17 +377,6 @@
         width: 100%;
       }
     }
-    .version-stamp {
-      position: fixed;
-      bottom: max(6px, env(safe-area-inset-bottom));
-      left: max(8px, env(safe-area-inset-left));
-      font-size: 10px;
-      line-height: 1;
-      color: rgba(0,0,0,0.28);
-      pointer-events: none;
-      user-select: none;
-      z-index: 5;
-    }
   </style>
 </head>
 <body>
@@ -553,6 +542,7 @@
   </div>
 
   <script src="/vendor/qrcode.js"></script>
+  <script src="/common.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
@@ -732,26 +722,9 @@
       }
     }
 
-    // Inline confirmation: native dialogs are suppressed in some embedded
-    // browsers, where confirm() silently returns false and the button looks
-    // like it does nothing.
     async function endSession(btn) {
       if (!sessionCode) return;
-
-      if (btn && btn.dataset.armed !== 'yes') {
-        const original = btn.dataset.originalLabel || btn.textContent;
-        btn.dataset.originalLabel = original;
-        btn.dataset.armed = 'yes';
-        btn.textContent = 'Confirm end?';
-        setTimeout(() => {
-          if (btn.dataset.armed === 'yes') {
-            btn.dataset.armed = '';
-            btn.textContent = original;
-          }
-        }, 6000);
-        return;
-      }
-      if (btn) btn.dataset.armed = '';
+      if (btn && !confirmClick(btn, 'Confirm end?')) return;
 
       try {
         const response = await fetch(`/api/sessions/${sessionCode}`, { method: 'DELETE' });
@@ -1036,11 +1009,7 @@
 
     checkAuth();
 
-    fetch('/api/version')
-      .then((r) => r.json())
-      .then(({ version }) => { document.getElementById('versionStamp').textContent = 'v' + version; })
-      .catch(() => {});
+    mountVersionStamp();
   </script>
-  <div class="version-stamp" id="versionStamp"></div>
 </body>
 </html>

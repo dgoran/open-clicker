@@ -25,8 +25,11 @@ describe('Show client target parsing', () => {
     });
   });
 
-  it('falls back to the plain code when a URL has no code parameter', () => {
-    expect(parseTarget('https://clicker.example.com/show.html', fallback).serverUrl).to.equal(fallback);
+  it('yields an empty code when a URL has no code parameter', () => {
+    expect(parseTarget('https://clicker.example.com/show.html', fallback)).to.deep.equal({
+      serverUrl: 'https://clicker.example.com',
+      sessionCode: ''
+    });
   });
 
   it('trims surrounding whitespace', () => {

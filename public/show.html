@@ -296,17 +296,6 @@
         padding: 12px max(12px, env(safe-area-inset-left)) 12px max(12px, env(safe-area-inset-right));
       }
     }
-    .version-stamp {
-      position: fixed;
-      bottom: max(6px, env(safe-area-inset-bottom));
-      left: max(8px, env(safe-area-inset-left));
-      font-size: 10px;
-      line-height: 1;
-      color: rgba(255,255,255,0.22);
-      pointer-events: none;
-      user-select: none;
-      z-index: 5;
-    }
   </style>
 </head>
 <body>
@@ -366,6 +355,7 @@
     </div>
   </div>
 
+  <script src="/common.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
@@ -676,11 +666,7 @@
       joinSession();
     }
 
-    fetch('/api/version')
-      .then((r) => r.json())
-      .then(({ version }) => { document.getElementById('versionStamp').textContent = 'v' + version; })
-      .catch(() => {});
+    mountVersionStamp('dark');
   </script>
-  <div class="version-stamp" id="versionStamp"></div>
 </body>
 </html>

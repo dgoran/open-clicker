@@ -169,17 +169,6 @@
     #auth-screen.active, #control-center.active {
       display: block;
     }
-    .version-stamp {
-      position: fixed;
-      bottom: max(6px, env(safe-area-inset-bottom));
-      left: max(8px, env(safe-area-inset-left));
-      font-size: 10px;
-      line-height: 1;
-      color: rgba(0,0,0,0.28);
-      pointer-events: none;
-      user-select: none;
-      z-index: 5;
-    }
   </style>
 </head>
 <body>
@@ -214,6 +203,7 @@
     </div>
   </div>
 
+  <script src="/common.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
@@ -316,31 +306,8 @@
       }, 2000);
     }
 
-    // Confirm inline rather than with confirm(): native dialogs are suppressed
-    // in some embedded browsers, where they silently return false and the
-    // button appears to do nothing.
-    function armConfirm(btn, label) {
-      const original = btn.dataset.originalLabel || btn.textContent;
-      btn.dataset.originalLabel = original;
-      btn.dataset.armed = 'yes';
-      btn.textContent = label;
-      btn.classList.add('danger');
-
-      setTimeout(() => {
-        if (btn.dataset.armed === 'yes') {
-          btn.dataset.armed = '';
-          btn.textContent = original;
-          btn.classList.remove('danger');
-        }
-      }, 6000);
-    }
-
     async function endSession(code, btn) {
-      if (btn && btn.dataset.armed !== 'yes') {
-        armConfirm(btn, 'Confirm end?');
-        return;
-      }
-      if (btn) btn.dataset.armed = '';
+      if (btn && !confirmClick(btn, 'Confirm end?')) return;
 
       try {
         const response = await fetch(`/api/sessions/${code}`, { method: 'DELETE' });
@@ -365,11 +332,7 @@
 
     checkAuth();
 
-    fetch('/api/version')
-      .then((r) => r.json())
-      .then(({ version }) => { document.getElementById('versionStamp').textContent = 'v' + version; })
-      .catch(() => {});
+    mountVersionStamp();
   </script>
-  <div class="version-stamp" id="versionStamp"></div>
 </body>
 </html>
